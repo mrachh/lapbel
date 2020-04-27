@@ -148,7 +148,6 @@ subroutine get_surf_uv_grad(nd,npatches,norders,ixyzs,iptype,npts,f, &
   do i=1,npatches
     istart = ixyzs(i)
     npols = ixyzs(i+1)-ixyzs(i)
-    print *, i,istart,npols
     if(iptype(i).eq.1) &
       call get_surf_uv_grad_tri(nd,norders(i),npols,f(1,istart),&
         dfuv(1,1,istart))
@@ -167,9 +166,7 @@ subroutine get_surf_uv_grad_tri(nd,norder,npols,f,dfuv)
   real *8 uv(2,npols)
   integer i,idim,j
 
-  print *, norder,npols,nd
   call vals_to_coefs_tri(nd,norder,npols,f,fcoefs)
-  call prin2('fcoefs=*',fcoefs,npols*nd)
   call get_vioreanu_nodes(norder,npols,uv)
 
   do i=1,npols
@@ -192,5 +189,105 @@ subroutine get_surf_uv_grad_tri(nd,norder,npols,f,dfuv)
 
   return
 end subroutine get_surf_uv_grad_tri
+!
+!
+!
+!
+!
+subroutine get_surf_div(nd,npatches,norders,ixyzs,iptype,npts, &
+  srccoefs,srcvals,f,df)
+  implicit none
+  integer npatches,norders(npatches),ixyzs(npatches+1),iptype(npatches)
+  integer npts,nd
+  real *8 srccoefs(9,npts),srcvals(12,npts),f(nd,2,npts),df(nd,npts)
+  real *8, allocatable :: ffform(:,:,:)
+
+  allocate(ffform(2,2,npts))
+
+
+  call get_first_fundamental_form(npatches,norders,ixyzs,iptype, &
+  npts,srccoefs,srcvals,ffform)
+
+  call get_surf_div_fast(nd,npatches,norders,ixyzs,iptype,npts, &
+    ffform,f,df)
+
+  return
+end subroutine get_surf_div
+!
+!
+!
+!
+!
+
+
+subroutine get_surf_div_fast(nd,npatches,norders,ixyzs,iptype,npts, &
+  ffform,f,df)
+  implicit none
+  integer npatches,norders(npatches),ixyzs(npatches+1),iptype(npatches)
+  integer npts,nd
+  real *8 ffform(2,2,npts),f(nd,2,npts),df(nd,npts)
+  integer i,istart,npols
+
+  do i=1,npatches
+    istart = ixyzs(i)
+    npols = ixyzs(i+1)-ixyzs(i)
+    if(iptype(i).eq.1) &
+      call get_surf_div_tri(nd,norders(i),npols,ffform(1,1,istart), &
+        f(1,1,istart),df(1,istart))
+  enddo
+
+
+  return
+
+  return
+end subroutine get_surf_div_fast
+!
+!
+!
+!
+!
+subroutine get_surf_div_tri(nd,norder,npols,ff,f,df)
+  implicit none
+  integer nd,norder,npols
+  real *8 f(nd,2,npols),df(nd,npols),ff(2,2,npols)
+  real *8 fcoefs(nd,2,npols),pols(npols),ders(2,npols)
+  real *8 ftmp(nd,2,npols)
+  real *8 uv(2,npols),gg(npols)
+  integer i,idim,j
+
+  do i=1,npols
+    gg(i) = sqrt(ff(1,1,i)*ff(2,2,i) - ff(1,2,i)*ff(2,1,i))
+    do idim=1,nd
+      ftmp(idim,1,i) = f(idim,1,i)*gg(i)
+      ftmp(idim,2,i) = f(idim,2,i)*gg(i)
+    enddo
+  enddo
+
+  call vals_to_coefs_tri(2*nd,norder,npols,ftmp,fcoefs)
+  call get_vioreanu_nodes(norder,npols,uv)
+
+  do i=1,npols
+    do idim=1,nd
+      df(idim,i) = 0
+    enddo
+  enddo
+
+
+  do i=1,npols
+    call koorn_ders(uv(1,i),norder,npols,pols,ders)
+    do j=1,npols
+      do idim=1,nd
+        df(idim,i) = df(idim,i) + ders(1,j)*fcoefs(idim,1,j) + &
+                                  ders(2,j)*fcoefs(idim,2,j)
+      enddo
+    enddo
+
+    do idim=1,nd
+      df(idim,i) = df(idim,i)/gg(i)
+    enddo
+  enddo
+
+  return
+end subroutine get_surf_div_tri
 
 

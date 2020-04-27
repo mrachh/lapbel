@@ -51,23 +51,34 @@
       xyz_out(2) = 3.1d0
       xyz_out(3) = 20.1d0
 
-      call getenv("S3D_INSTALL_DIR",dirname)
-      fname = trim(dirname)//'/geometries/sphere_768_o03.go3'
-      
-      call open_gov3_geometry_mem(fname,npatches,npts)
+      igeomtype = 1
+      ipars(1) = 4
+      npatches=12*(4**ipars(1))
 
-      call prinf('npatches=*',npatches,1)
-      call prinf('npts=*',npts,1)
+      norder = 8 
+      npols = (norder+1)*(norder+2)/2
 
+      npts = npatches*npols
       allocate(srcvals(12,npts),srccoefs(9,npts))
-      allocate(ixyzs(npatches+1),iptype(npatches),norders(npatches))
+      ifplot = 0
+
+      call setup_geom(igeomtype,norder,npatches,ipars, 
+     1       srcvals,srccoefs,ifplot,fname)
+
+      allocate(norders(npatches),ixyzs(npatches+1),iptype(npatches))
+
+      do i=1,npatches
+        norders(i) = norder
+        ixyzs(i) = 1 +(i-1)*npols
+        iptype(i) = 1
+      enddo
+
+      ixyzs(npatches+1) = 1+npols*npatches
       allocate(wts(npts))
-
-      call open_gov3_geometry(fname,npatches,norders,ixyzs,
-     1   iptype,npts,srcvals,srccoefs,wts)
+      call get_qwts(npatches,norders,ixyzs,iptype,npts,srcvals,wts)
 
 
-      allocate(sigma(npts),rhs(npts))
+      allocate(sigma(npts),rhs(npts),rhs2(npts))
       allocate(ffform(2,2,npts))
 
 c
@@ -78,7 +89,6 @@ c
       nmax = nn
       allocate(w(0:nmax,0:nmax))
       call l3getsph(nmax,mm,nn,12,srcvals,rhs,npts,w)
-      call prin2('rhs=*',rhs,12)
 
       allocate(drhs(2,npts),drhs_cart(3,npts),drhs_cart_ex(3,npts))
 
@@ -114,10 +124,18 @@ c
       enddo
       erra = sqrt(erra/npts)
 
-      print *, "err=",erra
+      print *, "error in surface gradient=",erra
 
+      call get_surf_div(2,npatches,norders,ixyzs,iptype,npts,
+     1  srccoefs,srcvals,drhs,rhs2)
 
+      erra = 0
+      do i=1,npts
+        erra = erra + abs(rhs2(i)+rhs(i)*nn*(nn+1))**2
+      enddo
 
+      erra=  sqrt(erra/npts)
+      print *, "error in surface divergence=",erra
 
       stop
       end
