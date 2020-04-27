@@ -6,7 +6,12 @@
       integer, allocatable :: norders(:),ixyzs(:),iptype(:)
 
       real *8 xyz_out(3),xyz_in(3)
-      complex *16, allocatable :: sigma(:),rhs(:)
+      real *8, allocatable :: ffform(:,:,:),ffformex(:,:,:)
+      real *8, allocatable :: ffforminv(:,:,:),ffformexinv(:,:,:)
+
+      complex *16, allocatable :: sigma(:),rhs(:),drhs(:,:)
+      complex *16, allocatable :: drhs_cart_ex(:,:)
+      complex *16, allocatable :: drhs_cart(:,:)
       complex *16, allocatable :: sigma2(:),rhs2(:)
       real *8, allocatable :: errs(:)
       real *8 thet,phi,eps_gmres
@@ -47,7 +52,7 @@
       xyz_out(3) = 20.1d0
 
       call getenv("S3D_INSTALL_DIR",dirname)
-      fname = trim(dirname)//'/geometries/sphere_192_o03.go3'
+      fname = trim(dirname)//'/geometries/sphere_768_o03.go3'
       
       call open_gov3_geometry_mem(fname,npatches,npts)
 
@@ -63,16 +68,56 @@
 
 
       allocate(sigma(npts),rhs(npts))
+      allocate(ffform(2,2,npts))
 
 c
 c       define rhs to be one of the ynm's
 c
-      nn = 3
-      mm = 2
+      nn = 2
+      mm = 1
       nmax = nn
       allocate(w(0:nmax,0:nmax))
       call l3getsph(nmax,mm,nn,12,srcvals,rhs,npts,w)
       call prin2('rhs=*',rhs,12)
+
+      allocate(drhs(2,npts),drhs_cart(3,npts),drhs_cart_ex(3,npts))
+
+      call get_surf_grad(2,npatches,norders,ixyzs,iptype,npts,
+     1  srccoefs,srcvals,rhs,drhs)
+       
+c
+c      estimate correct scaling
+c
+      erra = 0
+      do i=1,npts
+        call cart2polar(srcvals(1,i),r,theta,phi)
+        ztmp = -sqrt(15.0d0/2.0d0)*exp(ima*phi)
+        ct = cos(theta)
+        st = sin(theta)
+        cp = cos(phi)
+        sp = sin(phi)
+        c2t = cos(2*theta)
+        drhs_cart_ex(1,i) = ztmp*(c2t*ct*cp - ima*ct*sp) 
+        drhs_cart_ex(2,i) = ztmp*(c2t*ct*sp + ima*ct*cp)
+        drhs_cart_ex(3,i) = -ztmp*st*c2t
+
+
+        drhs_cart(1,i)=drhs(1,i)*srcvals(4,i) + drhs(2,i)*srcvals(7,i)
+        drhs_cart(2,i)=drhs(1,i)*srcvals(5,i) + drhs(2,i)*srcvals(8,i)
+        drhs_cart(3,i)=drhs(1,i)*srcvals(6,i) + drhs(2,i)*srcvals(9,i)
+
+        err1 = abs(drhs_cart(1,i)-drhs_cart_ex(1,i))**2
+        err2 = abs(drhs_cart(2,i)-drhs_cart_ex(2,i))**2
+        err3 = abs(drhs_cart(3,i)-drhs_cart_ex(3,i))**2
+        
+        erra = erra + err1 + err2 + err3
+      enddo
+      erra = sqrt(erra/npts)
+
+      print *, "err=",erra
+
+
+
 
       stop
       end

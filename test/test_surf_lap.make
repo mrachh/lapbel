@@ -19,7 +19,7 @@ ifneq ($(OS),Windows_NT)
 endif
     
 
-LIBS = -lsolvers3d -lfmm3d 
+LIBS = -lfmm3dbie -lfmm3d 
 ifeq ($(HOST),gcc)
     FC=gfortran -L${LDF} 
     FFLAGS=-fPIC -O3 -funroll-loops -march=native  
@@ -40,11 +40,12 @@ ifeq ($(HOST),intel-openmp)
     FFLAGS= -O3 -fPIC -march=native -qopenmp
 endif
 
-SURF=../../src/surface_routs
+SURF=../src/surface_routs
 
 .PHONY: all clean 
 
 OBJECTS =  test_surf_lap.o \
+    $(SURF)/surf_routs.o
 
 
 #
