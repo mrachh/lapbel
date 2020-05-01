@@ -556,13 +556,13 @@ c
       integer, intent(in) :: norders(npatches),ixyzs(npatches+1)
       integer, intent(in) :: ixyzso(npatches+1),iptype(npatches)
       real *8, intent(in) :: srccoefs(9,npts),srcvals(12,npts),eps
-      integer, intent(in) :: nnz,row_ptr(ntarg+1),col_ind(nnz),nquad
+      integer, intent(in) :: nnz,row_ptr(npts+1),col_ind(nnz),nquad
       integer, intent(in) :: iquad(nnz+1)
       real *8, intent(in) :: wnear(3*nquad),sigma(npts)
       integer, intent(in) :: novers(npatches+1)
       integer, intent(in) :: nptso
       real *8, intent(in) :: srcover(12,nptso),whtsover(nptso)
-      real *8, intent(out) :: pot(ntarg)
+      real *8, intent(out) :: pot(npts)
 
       integer norder,npols,nover,npolso
 
