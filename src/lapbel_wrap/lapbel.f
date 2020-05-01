@@ -223,6 +223,8 @@ c
 
       dpars = 1.0d0/4/pi
 
+      print *, dpars
+
 C$OMP PARALLEL DO DEFAULT(SHARED)
       do i=1,3*nquad
         wnear(i) = wnear(i)*dpars
@@ -760,7 +762,7 @@ C$OMP END PARALLEL DO
 c
 
 C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,jpatch,srctmp2)
-C$OMP$PRIVATE(ctmp2,dtmp2,nss,l,jstart,ii,val,npover)
+C$OMP$PRIVATE(ctmp2,dtmp2,nss,l,jstart,ii,val,npover,vgrad)
       do i=1,npts
         nss = 0
         do j=row_ptr(i),row_ptr(i+1)-1
