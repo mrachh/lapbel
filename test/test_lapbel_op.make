@@ -41,10 +41,13 @@ ifeq ($(HOST),intel-openmp)
 endif
 
 SURF=../src/surface_routs
+LBW=../src/lapbel_wrap
 
 .PHONY: all clean 
 
-OBJECTS =  test_surf_lap.o \
+OBJECTS =  test_lapbel_op.o \
+    $(LBW)/lapbel.o \
+    $(LBW)/lapbel_kernels.o
 
 
 #
