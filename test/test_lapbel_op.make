@@ -19,7 +19,7 @@ ifneq ($(OS),Windows_NT)
 endif
     
 
-LIBS = -lfmm3dbie -lfmm3d 
+LIBS = -lfmm3dbie -lfmm3d  -lopenblas ${LDFLAGS}
 ifeq ($(HOST),gcc)
     FC=gfortran -L${LDF} 
     FFLAGS=-fPIC -O3 -funroll-loops -march=native  

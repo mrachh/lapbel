@@ -2,6 +2,9 @@
       real *8, allocatable :: srcvals(:,:),srccoefs(:,:)
       real *8, allocatable :: wts(:),rsigma(:)
       integer ipars(2)
+      integer, allocatable :: ipatch_id(:)
+      real *8, allocatable :: uvs_targ(:,:)
+      real *8 dpars(2)
 
       integer, allocatable :: norders(:),ixyzs(:),iptype(:)
 
@@ -10,16 +13,25 @@
       real *8, allocatable :: ffforminv(:,:,:),ffformexinv(:,:,:)
 
       complex *16, allocatable :: rhs(:)
-      real *8, allocatable :: sigma(:), pot(:),pot1(:)
+      real *8, allocatable :: sigma(:), pot(:),pot1(:),rrhs(:)
       real *8, allocatable :: errs(:)
+
+      real *8, allocatable :: wnear(:)
+      real *8, allocatable :: targs(:,:)
+      real *8, allocatable :: cms(:,:),rads(:),rad_near(:)
+      real *8, allocatable :: srcover(:,:),wover(:)
+      real *8, allocatable :: xmat(:,:)
+      integer, allocatable :: ixyzso(:),novers(:)
+      integer, allocatable :: row_ptr(:),col_ind(:),iquad(:)
+
+
+
       real *8 thet,phi,eps_gmres
       complex * 16 zpars(3)
       integer numit,niter
       character *100 title,dirname
       character *300 fname
 
-      integer ipatch_id
-      real *8 uvs_targ(2)
       real *8, allocatable :: w(:,:)
 
       logical isout0,isout1
@@ -71,12 +83,14 @@
         iptype(i) = 1
       enddo
 
+      print *, 'npts=',npts
+
       ixyzs(npatches+1) = 1+npols*npatches
       allocate(wts(npts))
       call get_qwts(npatches,norders,ixyzs,iptype,npts,srcvals,wts)
 
 
-      allocate(sigma(npts),rhs(npts),pot(npts))
+      allocate(sigma(npts),rhs(npts),pot(npts),rrhs(npts))
       allocate(ffform(2,2,npts))
 
 c
@@ -89,16 +103,119 @@ c
       call l3getsph(nmax,mm,nn,12,srcvals,rhs,npts,w)
       
       do i=1,npts
-        sigma(i) = real(rhs(i))
+        rrhs(i) = real(rhs(i))
       enddo
 
-      eps = 0.5d-6
+      eps = 0.51d-9
+
+
+c
+c       precompute near quadrature correction
+c
+c
+      iptype_avg = floor(sum(iptype)/(npatches+0.0d0))
+      norder_avg = floor(sum(norders)/(npatches+0.0d0))
+
+      call get_rfacs(norder_avg,iptype_avg,rfac,rfac0)
+
+
+      allocate(cms(3,npatches),rads(npatches),rad_near(npatches))
+
+      call get_centroid_rads(npatches,norders,ixyzs,iptype,npts, 
+     1     srccoefs,cms,rads)
+
+C$OMP PARALLEL DO DEFAULT(SHARED) 
+      do i=1,npatches
+        rad_near(i) = rads(i)*rfac
+      enddo
+C$OMP END PARALLEL DO     
+
+      ntarg = npts
+      allocate(targs(3,npts))
+C$OMP PARALLEL DO DEFAULT(SHARED)      
+      do i=1,npts 
+        targs(1,i) = srcvals(1,i)
+        targs(2,i) = srcvals(2,i)
+        targs(3,i) = srcvals(3,i)
+      enddo
+C$OMP END PARALLEL DO      
+
+c
+c    find near quadrature correction interactions
+c
+      call findnearmem(cms,npatches,rad_near,targs,npts,nnz)
+
+      allocate(row_ptr(npts+1),col_ind(nnz))
+      
+      call findnear(cms,npatches,rad_near,targs,npts,row_ptr, 
+     1        col_ind)
+
+      allocate(iquad(nnz+1)) 
+      call get_iquad_rsc(npatches,ixyzs,ntarg,nnz,row_ptr,col_ind,
+     1         iquad)
+
+      allocate(ipatch_id(npts),uvs_targ(2,npts))
+      call get_patch_id_uvs(npatches,norders,ixyzs,iptype,npts,
+     1  ipatch_id,uvs_targ)
+      
+
+
+c
+c    estimate oversampling for far-field, and oversample geometry
+c
+
+      ikerorder = 0
+      allocate(novers(npatches),ixyzso(npatches+1))
+
+      zpars = 0
+      ndtarg = 3
+      call get_far_order(eps,npatches,norders,ixyzs,iptype,cms,
+     1    rads,npts,srccoefs,ndtarg,npts,targs,ikerorder,zpars,
+     2    nnz,row_ptr,col_ind,rfac,novers,ixyzso)
+
+      npts_over = ixyzso(npatches+1)-1
+
+      allocate(srcover(12,npts_over),wover(npts_over))
+
+      call oversample_geom(npatches,norders,ixyzs,iptype,npts, 
+     1   srccoefs,srcvals,novers,ixyzso,npts_over,srcover)
+
+      call get_qwts(npatches,novers,ixyzso,iptype,npts_over,
+     1        srcover,wover)
+
+
+c
+c   compute near quadrature correction
+c
+      nquad = iquad(nnz+1)-1
+      allocate(wnear(3*nquad))
+      
+C$OMP PARALLEL DO DEFAULT(SHARED)      
+      do i=1,3*nquad
+        wnear(i) = 0
+      enddo
+C$OMP END PARALLEL DO    
+
+      call prinf('finished generating near field info*',i,0)
+      call prinf('finished generating far field orders*',i,0)
+      call prinf('npts_over=*',npts_over,1)
+      call prin2('eps=*',eps,1)
+
+      iquadtype = 1
+
+      call getnearquad_lap_bel(npatches,norders,
+     1      ixyzs,iptype,npts,srccoefs,srcvals,
+     1      ipatch_id,uvs_targ,eps,iquadtype,nnz,row_ptr,col_ind,
+     1      iquad,rfac0,nquad,wnear)
+      call prinf('finished generating near quadrature correction*',i,0)
+
 
       call prinf('entering layer potential eval*',i,0)
       call prinf('npts=*',npts,1)
 
-      call lpcomp_lap_bel(npatches,norders,ixyzs,iptype,npts,
-     1  srccoefs,srcvals,eps,sigma,pot)
+      call lpcomp_lap_bel_addsub(npatches,norders,ixyzs,iptype,npts,
+     1  srccoefs,srcvals,eps,nnz,row_ptr,col_ind,iquad,nquad,wnear,
+     2  rrhs,novers,npts_over,ixyzso,srcover,wover,pot)
 
       erra = 0
       ra = 0
@@ -107,28 +224,107 @@ c
 
       allocate(pot1(npts))
       do i=1,npts
-        erra=  erra + (pot(i)-rr*sigma(i))**2*wts(i)
-        ra = ra + (rr*sigma(i))**2*wts(i)
-        pot1(i) = pot(i) - sigma(i)/4.0d0 
-        erra2 = erra2 + (pot1(i)-rr*sigma(i))**2*wts(i)
+        erra=  erra + (pot(i)-rr*rrhs(i))**2*wts(i)
+        ra = ra + (rr*rrhs(i))**2*wts(i)
       enddo
 
-      print *, erra,erra2,rr,ra
 
       erra = sqrt(erra/ra)
-      erra2 = sqrt(erra2/ra)
       call prin2('error in application of layer potential=*',erra,1)
-      call prin2('error in application of layer potential2=*',erra2,1)
-      call prin2('pot=*',pot,24)
-      call prin2('sigma=*',sigma,24)
-      call prin2('pot1=*',pot1,24)
+
+
+c
+c
+c       form matrix by applying matrix to unit vectors
+c
+      allocate(xmat(npts,npts))
+      do i=1,npts
+        print *, "i=",i
+        do j=1,npts
+           sigma(j) = 0
+        enddo
+
+        sigma(i) = 1
+        call lpcomp_lap_bel_addsub(npatches,norders,ixyzs,iptype,npts,
+     1    srccoefs,srcvals,eps,nnz,row_ptr,col_ind,iquad,nquad,wnear,
+     2    sigma,novers,npts_over,ixyzso,srcover,wover,xmat(1,i))
+      enddo
+c
+c
+c        test matvec on ynm
+c
+      done = 1
+      dzero = 0
+      call dgemv('n',npts,npts,done,xmat,npts,rrhs,1,dzero,pot,1)
+
+      erra = 0
+      ra = 0
+      erra2 = 0
+      rr = -(nn+0.0d0)*(nn+1.0d0)/(2*nn+1.0d0)**2
 
       do i=1,npts
-        write(78,'(3(2x,e11.5))') pot(i),sigma(i),pot1(i)
-
+        erra=  erra + (pot(i)-rr*rrhs(i))**2*wts(i)
+        ra = ra + (rr*rrhs(i))**2*wts(i)
       enddo
 
-      
+
+      erra = sqrt(erra/ra)
+      call prin2('error in slow application of layer potential=*',
+     1   erra,1)
+
+      call dgausselim(npts,xmat,rrhs,info,sigma,dcond)
+
+      erra = 0
+      ra = 0
+      erra2 = 0
+      rr = -(nn+0.0d0)*(nn+1.0d0)/(2*nn+1.0d0)**2
+
+      do i=1,npts
+        erra=  erra + (rr*sigma(i)-rrhs(i))**2*wts(i)
+        ra = ra + (rr*rrhs(i))**2*wts(i)
+      enddo
+
+
+      erra = sqrt(erra/ra)
+      call prin2('error in solve=*',erra,1)
+      stop
+
+
+
+
+
+
+      call prin2('starting iterative solve*',i,0)
+      numit = 200
+      allocate(errs(numit+1))
+
+      eps_gmres = eps
+      call lap_bel_solver(npatches,norders,ixyzs,iptype,npts,srccoefs,
+     1  srcvals,eps,numit,rrhs,eps_gmres,niter,errs,rres,sigma) 
+
+      call prinf('niter=*',niter,1)
+      call prin2('errs=*',errs,niter)
+
+      dpars(1) = 1.0d0/4/pi
+      dpars(2) = 0
+
+
+      call lpcomp_lap_comb_dir(npatches,norders,ixyzs,iptype,npts,
+     1  srccoefs,srcvals,12,npts,srcvals,ipatch_id,uvs_targ,eps,
+     2  dpars,sigma,pot)
+      call prin2('pot=*',pot,24)
+      call prin2('rrhs=*',rrhs,24)
+      call prin2('sigma=*',sigma,24)
+
+      erra = 0
+      ra = 0
+
+      do i=1,npts
+        erra = erra + (pot(i) - rrhs(i))**2*wts(i)
+        ra = ra + rrhs(i)**2*wts(i)
+      enddo
+
+      call prin2('error in solve=*',erra,1)
 
 
       stop

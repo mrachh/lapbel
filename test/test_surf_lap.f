@@ -13,6 +13,7 @@
       complex *16, allocatable :: drhs_cart_ex(:,:)
       complex *16, allocatable :: drhs_cart(:,:)
       complex *16, allocatable :: sigma2(:),rhs2(:)
+      real *8, allocatable :: slmat(:,:)
       real *8, allocatable :: errs(:)
       real *8 thet,phi,eps_gmres
       complex * 16 zpars(3)
@@ -52,7 +53,7 @@
       xyz_out(3) = 20.1d0
 
       igeomtype = 1
-      ipars(1) = 4
+      ipars(1) = 2
       npatches=12*(4**ipars(1))
 
       norder = 8 
@@ -137,6 +138,33 @@ c
       erra=  sqrt(erra/npts)
       print *, "error in surface divergence=",erra
 
+c
+c
+c       compute surface gradient and surface divergence 
+c    by forming matrices
+c
+      call get_surf_grad(2,npatches,norders,ixyzs,iptype,npts,
+     1  srccoefs,srcvals,rhs,drhs)
+
+      allocate(slmat(npts,npts))
+
+      call form_surf_lap_mat(npatches,norders,ixyzs,iptype,npts,
+     1   srccoefs,srcvals,slmat)
+      call prin2('slmat=*',slmat,24)
+
+      erra = 0
+      do i=1,npts
+        rhs2(i) = 0
+        do j=1,npts
+          rhs2(i) = rhs2(i) + slmat(i,j)*rhs(j)
+        enddo
+        erra = erra + abs(rhs2(i)+rhs(i)*nn*(nn+1))**2
+      enddo
+      call prin2('rhs=*',rhs,24)
+      call prin2('rhs2=*',rhs2,24)
+      erra = sqrt(erra/npts)
+      print *, "error in surface laplacian matrix apply=",erra
+      
       stop
       end
 
