@@ -53,6 +53,12 @@ subroutine form_surf_lap_mat(npatches,norders,ixyzs,iptype,npts, &
 
   allocate(ffforminv(2,2,npts))
 
+  do i=1,npts
+    do j=1,npts
+      xmat(j,i) = 0
+    enddo
+  enddo
+
 
   call get_inv_first_fundamental_form(npatches,norders,ixyzs,iptype, &
   npts,srccoefs,srcvals,ffforminv)
