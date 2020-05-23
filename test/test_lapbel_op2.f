@@ -73,7 +73,7 @@
       ipars(1) = 2
       npatches=12*(4**ipars(1))
 
-      norder = 5 
+      norder = 8 
       npols = (norder+1)*(norder+2)/2
 
       npts = npatches*npols
@@ -114,7 +114,7 @@ c
         rrhs(i) = real(rhs(i))
       enddo
 
-      eps = 0.51d-8
+      eps = 0.51d-6
 
 
 c
@@ -196,10 +196,10 @@ c
 c   compute near quadrature correction
 c
       nquad = iquad(nnz+1)-1
-      allocate(wnear(5*nquad))
+      allocate(wnear(3*nquad))
       
 C$OMP PARALLEL DO DEFAULT(SHARED)      
-      do i=1,5*nquad
+      do i=1,3*nquad
         wnear(i) = 0
       enddo
 C$OMP END PARALLEL DO    
@@ -228,8 +228,7 @@ C$OMP END PARALLEL DO
       erra = 0
       ra = 0
       erra2 = 0
-      rr = -(nn+0.0d0)*(nn+1.0d0)/(2*nn+1.0d0)**2 
-      print *, rr
+      rr = -(nn+0.0d0)*(nn+1.0d0)/(2*nn+1.0d0)**2
 
       allocate(pot1(npts))
       do i=1,npts
@@ -239,15 +238,140 @@ C$OMP END PARALLEL DO
       erra = sqrt(erra/ra)
       call prin2('error in application of layer potential=*',erra,1)
 
-      call prin2('pot=*',pot,24)
-      call prin2('rrhs=*',rrhs,24)
+
+c
+c
+c       form matrix by composing S_{0} \Delta_{\Gamma} S_{0} matrices 
+c
+      allocate(s0mat(npts,npts))
+      allocate(slapmat(npts,npts))
+      allocate(xmat(npts,npts))
+      allocate(xtmp(npts,npts))
+
+      dpars(1) = 1.0d0/4/pi
+      dpars(2) = 0
+
+      nent_csc = npts*npts
+      call lap_comb_dir_fds_mem(npatches,norders,ixyzs,iptype,npts,
+     1  srccoefs,srcvals,eps,dpars,nifds,nrfds,nzfds)
+
+
+      allocate(ifds(nifds),rfds(nrfds),zfds(nzfds))
+      
+      call lap_comb_dir_fds_init(npatches,norders,ixyzs,iptype,npts,
+     1  srccoefs,srcvals,eps,dpars,nifds,ifds,nrfds,rfds,nzfds,zfds)
+
+
+      allocate(col_ptr(npts+1),row_ind(nent_csc))
+      do i=1,npts
+        do j=1,npts
+          ipt = (i-1)*npts+j
+          row_ind(ipt) = j
+        enddo
+        col_ptr(i) = (i-1)*npts+1
+      enddo
+      col_ptr(npts+1) = nent_csc+1
+
+      
+      call lap_comb_dir_fds_matgen(npatches,norders,ixyzs,iptype,
+     1   npts,srccoefs,srcvals,eps,dpars,nifds,ifds,nrfds,rfds,nzfds,
+     2   zfds,nent,col_ptr,row_ind,s0mat)
+
+      call form_surf_lap_mat(npatches,norders,ixyzs,iptype,npts,
+     1   srccoefs,srcvals,slapmat)
+
+c
+c      add one's matrix correction to slapmat
+c
+c
+      do j=1,npts
+        do i=1,npts
+          slapmat(i,j) = slapmat(i,j) + wts(j)
+        enddo
+      enddo
+c
+c
+c        test matvec on ynm
+c
+      done = 1
+      dzero = 0
+      call dgemv('n',npts,npts,done,s0mat,npts,rrhs,1,dzero,pot,1)
+      rr = 1.0d0/(2*nn+1.0d0)
+      erra = 0
+      ra = 0
+      do i=1,npts
+        sigma(i) = pot(i)
+        erra = erra + abs(pot(i)-rr*rrhs(i))**2*wts(i)
+        ra = ra + (rr*rrhs(i))**2*wts(i)
+      enddo
+
+      erra = sqrt(erra/ra)
+      call prin2('error in application of s0=*',erra,1)
+      
+
+
+      call dgemv('n',npts,npts,done,slapmat,npts,sigma,1,dzero,pot,1)
+      erra = 0
+      ra = 0
+      rr = -(nn+0.0d0)*(nn+1.0d0)/(2*nn+1.0d0)
+
+      do i=1,npts
+        sigma(i) = pot(i)
+        erra = erra + abs(pot(i)-rr*rrhs(i))**2*wts(i)
+        ra = ra + (rr*rrhs(i))**2*wts(i)
+      enddo
+
+      erra = sqrt(erra/ra)
+      call prin2('error in application of slap . s0=*',erra,1)
+      
+
+      call dgemv('n',npts,npts,done,s0mat,npts,sigma,1,dzero,pot,1)
+      rr = -(nn+0.0d0)*(nn+1.0d0)/(2*nn+1.0d0)**2
+      erra = 0
+      ra = 0
+      do i=1,npts
+        erra = erra + abs(pot(i)-rr*rrhs(i))**2*wts(i)
+        ra = ra + (rr*rrhs(i))**2*wts(i)
+      enddo
+
+      erra = sqrt(erra/ra)
+      call prin2('error in application of s0 . slap. s0=*',erra,1)
+
+c
+c    form the matrix s0 . slap . s0
+c
+
+      call dmatmat(npts,npts,slapmat,npts,s0mat,xtmp)
+      call dmatmat(npts,npts,s0mat,npts,xtmp,xmat)
+
+      call dgausselim(npts,xmat,rrhs,info,pot,dcond)
+
+      call prin2('condition number of s0 . slap . s0=*',dcond,1)
+
+      erra = 0
+      ra = 0
+      rr = -(nn+0.0d0)*(nn+1.0d0)/(2*nn+1.0d0)**2
+
+      do i=1,npts
+        erra=  erra + (rr*pot(i)-rrhs(i))**2*wts(i)
+        ra = ra + (rr*rrhs(i))**2*wts(i)
+      enddo
+
+
+      erra = sqrt(erra/ra)
+      call prin2('error in solve=*',erra,1)
+      stop
+
+
+
+
 
 
       call prin2('starting iterative solve*',i,0)
-      numit = 50
+      numit = 200
       allocate(errs(numit+1))
 
-      eps_gmres = 1.0d-12
+      eps_gmres = eps
       call lap_bel_solver(npatches,norders,ixyzs,iptype,npts,srccoefs,
      1  srcvals,eps,numit,rrhs,eps_gmres,niter,errs,rres,sigma) 
 
@@ -268,14 +392,10 @@ C$OMP END PARALLEL DO
       erra = 0
       ra = 0
 
-      rr = -1.0d0/((nn+0.0d0)*(nn+1.0d0))
-
       do i=1,npts
-        erra = erra + (pot(i) - rr*rrhs(i))**2*wts(i)
+        erra = erra + (pot(i) - rrhs(i))**2*wts(i)
         ra = ra + rrhs(i)**2*wts(i)
       enddo
-      call prin2('pot=*',pot,24)
-      call prin2('rrhs=*',rrhs,24)
 
       call prin2('error in solve=*',erra,1)
 
