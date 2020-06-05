@@ -139,6 +139,7 @@ subroutine form_surf_lap_mat_tri(norder,n,ffforminv,xmat)
 
   
   call get_vioreanu_nodes(norder,n,uvs)
+
   call koorn_vals2coefs(norder,n,uvs,umat)
 
   do i=1,n
@@ -165,7 +166,6 @@ subroutine form_surf_lap_mat_tri(norder,n,ffforminv,xmat)
         ffforminv(2,2,i)*xvtmp(i,j))
     enddo
   enddo
-
 
   call dgemm('n','n',n,n,n,done,xutmp,n,xutmp2,n,dzero,xutmp3,n)
   call dgemm('n','n',n,n,n,done,xvtmp,n,xvtmp2,n,dzero,xvtmp3,n)

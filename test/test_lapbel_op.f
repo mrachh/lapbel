@@ -20,7 +20,15 @@
       real *8, allocatable :: targs(:,:)
       real *8, allocatable :: cms(:,:),rads(:),rad_near(:)
       real *8, allocatable :: srcover(:,:),wover(:)
-      real *8, allocatable :: xmat(:,:)
+      real *8, allocatable :: xmat(:,:),xtmp(:,:)
+      real *8, allocatable :: slapmat(:,:), s0mat(:,:)
+
+      real *8, allocatable :: rfds(:)
+      integer, allocatable :: ifds(:)
+      complex *16, allocatable :: zfds(:)
+
+
+      integer, allocatable :: col_ptr(:),row_ind(:)
       integer, allocatable :: ixyzso(:),novers(:)
       integer, allocatable :: row_ptr(:),col_ind(:),iquad(:)
 
@@ -65,7 +73,7 @@
       ipars(1) = 2
       npatches=12*(4**ipars(1))
 
-      norder = 8 
+      norder = 3 
       npols = (norder+1)*(norder+2)/2
 
       npts = npatches*npols
@@ -106,7 +114,7 @@ c
         rrhs(i) = real(rhs(i))
       enddo
 
-      eps = 0.51d-9
+      eps = 0.51d-8
 
 
 c
@@ -188,10 +196,10 @@ c
 c   compute near quadrature correction
 c
       nquad = iquad(nnz+1)-1
-      allocate(wnear(3*nquad))
+      allocate(wnear(5*nquad))
       
 C$OMP PARALLEL DO DEFAULT(SHARED)      
-      do i=1,3*nquad
+      do i=1,5*nquad
         wnear(i) = 0
       enddo
 C$OMP END PARALLEL DO    
@@ -220,85 +228,26 @@ C$OMP END PARALLEL DO
       erra = 0
       ra = 0
       erra2 = 0
-      rr = -(nn+0.0d0)*(nn+1.0d0)/(2*nn+1.0d0)**2
+      rr = -(nn+0.0d0)*(nn+1.0d0)/(2*nn+1.0d0)**2 
+      print *, rr
 
       allocate(pot1(npts))
       do i=1,npts
         erra=  erra + (pot(i)-rr*rrhs(i))**2*wts(i)
         ra = ra + (rr*rrhs(i))**2*wts(i)
       enddo
-
-
       erra = sqrt(erra/ra)
       call prin2('error in application of layer potential=*',erra,1)
 
-
-c
-c
-c       form matrix by applying matrix to unit vectors
-c
-      allocate(xmat(npts,npts))
-      do i=1,npts
-        print *, "i=",i
-        do j=1,npts
-           sigma(j) = 0
-        enddo
-
-        sigma(i) = 1
-        call lpcomp_lap_bel_addsub(npatches,norders,ixyzs,iptype,npts,
-     1    srccoefs,srcvals,eps,nnz,row_ptr,col_ind,iquad,nquad,wnear,
-     2    sigma,novers,npts_over,ixyzso,srcover,wover,xmat(1,i))
-      enddo
-c
-c
-c        test matvec on ynm
-c
-      done = 1
-      dzero = 0
-      call dgemv('n',npts,npts,done,xmat,npts,rrhs,1,dzero,pot,1)
-
-      erra = 0
-      ra = 0
-      erra2 = 0
-      rr = -(nn+0.0d0)*(nn+1.0d0)/(2*nn+1.0d0)**2
-
-      do i=1,npts
-        erra=  erra + (pot(i)-rr*rrhs(i))**2*wts(i)
-        ra = ra + (rr*rrhs(i))**2*wts(i)
-      enddo
-
-
-      erra = sqrt(erra/ra)
-      call prin2('error in slow application of layer potential=*',
-     1   erra,1)
-
-      call dgausselim(npts,xmat,rrhs,info,sigma,dcond)
-
-      erra = 0
-      ra = 0
-      erra2 = 0
-      rr = -(nn+0.0d0)*(nn+1.0d0)/(2*nn+1.0d0)**2
-
-      do i=1,npts
-        erra=  erra + (rr*sigma(i)-rrhs(i))**2*wts(i)
-        ra = ra + (rr*rrhs(i))**2*wts(i)
-      enddo
-
-
-      erra = sqrt(erra/ra)
-      call prin2('error in solve=*',erra,1)
-      stop
-
-
-
-
+      call prin2('pot=*',pot,24)
+      call prin2('rrhs=*',rrhs,24)
 
 
       call prin2('starting iterative solve*',i,0)
-      numit = 200
+      numit = 50
       allocate(errs(numit+1))
 
-      eps_gmres = eps
+      eps_gmres = 1.0d-12
       call lap_bel_solver(npatches,norders,ixyzs,iptype,npts,srccoefs,
      1  srcvals,eps,numit,rrhs,eps_gmres,niter,errs,rres,sigma) 
 
@@ -319,10 +268,14 @@ c
       erra = 0
       ra = 0
 
+      rr = -1.0d0/((nn+0.0d0)*(nn+1.0d0))
+
       do i=1,npts
-        erra = erra + (pot(i) - rrhs(i))**2*wts(i)
+        erra = erra + (pot(i) - rr*rrhs(i))**2*wts(i)
         ra = ra + rrhs(i)**2*wts(i)
       enddo
+      call prin2('pot=*',pot,24)
+      call prin2('rrhs=*',rrhs,24)
 
       call prin2('error in solve=*',erra,1)
 

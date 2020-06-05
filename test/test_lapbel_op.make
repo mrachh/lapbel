@@ -47,7 +47,8 @@ LBW=../src/lapbel_wrap
 
 OBJECTS =  test_lapbel_op.o \
     $(LBW)/lapbel.o \
-    $(LBW)/lapbel_kernels.o
+    $(LBW)/lapbel_kernels.o \
+    $(SURF)/surf_routs.o \
 
 
 #

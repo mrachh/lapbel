@@ -13,7 +13,8 @@
       complex *16, allocatable :: drhs_cart_ex(:,:)
       complex *16, allocatable :: drhs_cart(:,:)
       complex *16, allocatable :: sigma2(:),rhs2(:)
-      real *8, allocatable :: slmat(:,:)
+      real *8, allocatable :: rrhs(:),rrhs2(:)
+      real *8, allocatable :: slmat(:,:),umat(:,:),vmat(:,:),ssing(:)
       real *8, allocatable :: errs(:)
       real *8 thet,phi,eps_gmres
       complex * 16 zpars(3)
@@ -79,7 +80,7 @@
       call get_qwts(npatches,norders,ixyzs,iptype,npts,srcvals,wts)
 
 
-      allocate(sigma(npts),rhs(npts),rhs2(npts))
+      allocate(sigma(npts),rhs(npts),rhs2(npts),rrhs(npts),rrhs2(npts))
       allocate(ffform(2,2,npts))
 
 c
@@ -90,6 +91,10 @@ c
       nmax = nn
       allocate(w(0:nmax,0:nmax))
       call l3getsph(nmax,mm,nn,12,srcvals,rhs,npts,w)
+
+      do i=1,npts
+        rrhs(i) = real(rhs(i))
+      enddo
 
       allocate(drhs(2,npts),drhs_cart(3,npts),drhs_cart_ex(3,npts))
 
@@ -143,8 +148,6 @@ c
 c       compute surface gradient and surface divergence 
 c    by forming matrices
 c
-      call get_surf_grad(2,npatches,norders,ixyzs,iptype,npts,
-     1  srccoefs,srcvals,rhs,drhs)
 
       allocate(slmat(npts,npts))
 
@@ -152,18 +155,33 @@ c
      1   srccoefs,srcvals,slmat)
       call prin2('slmat=*',slmat,24)
 
+
+      call dmatvec(npts,npts,slmat,rrhs,rrhs2)
+
+
       erra = 0
       do i=1,npts
-        rhs2(i) = 0
-        do j=1,npts
-          rhs2(i) = rhs2(i) + slmat(i,j)*rhs(j)
-        enddo
-        erra = erra + abs(rhs2(i)+rhs(i)*nn*(nn+1))**2
+        erra = erra + abs(rrhs2(i)+rrhs(i)*nn*(nn+1))**2*wts(i)
+        ra = ra + (rrhs(i)*nn*(nn+1.0d0))**2*wts(i)
       enddo
+      erra = sqrt(erra/ra)
       call prin2('rhs=*',rhs,24)
       call prin2('rhs2=*',rhs2,24)
-      erra = sqrt(erra/npts)
       print *, "error in surface laplacian matrix apply=",erra
+
+
+
+c
+c       compute svd of slmat
+c
+      allocate(umat(npols,npols),ssing(npols),vmat(npols,npols))
+      call dsvd(npols,npols,slmat(1:npols,1:npols),umat,ssing,vmat)
+      do i=1,npols
+        write(38,*) ssing(i)
+      enddo
+
+
+
       
       stop
       end

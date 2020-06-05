@@ -2,17 +2,14 @@ c
 c     Laplace Beltrami solver, based on the representation
 c     S_{0} (\Delta_{\Gamma}+ \int_{\Gamma} )S_{0} \sigma = f
 c
-c     it stores three sets of quadratures in wnear, 
-c       \nabla S_{0} \cdot x_{u}, \nabla S_{0} \cdot x_{v}
-c       and finally S_{0} in that particular order.
-c
-c
+c     it stores five sets of quadratures in wnear, 
+c       \nabla_{t} S_{0} \cdot x_{u}, \nabla_{t} S_{0} \cdot x_{v},
+c       \nabla_{s} S_{0} \cdot x_{u}, \nabla_{s} S_{0} \cdot x_{v},
+c       and finally S_{0}
 c    
-c  
 c
 c    This way there is only loss of one order of accuracy
 c    (hopefully)
-c
 c
 c     This file contains the following user callable
 c     routines: 
@@ -54,8 +51,10 @@ c
 c
 c       this subroutine generates the near field quadrature
 c       for the representation u = S_{0} \Delta_{\Gamma} S_{0} \, ,
-c       by storing (\nabla S_{0} [\sigma]) \cdot x_{u}),
-c       (\nabla S_{0} [\sigma]) \cdot x_{v}), and that for S_{0}
+c       by storing (\nabla_{t} S_{0} [\sigma]) \cdot x_{u}),
+c       (\nabla_{t} S_{0} [\sigma]) \cdot x_{v}), 
+c       (\nabla_{s} S_{0} \cdot x_{u} [\sigma]), 
+c       (\nabla_{s} S_{0} \cdot x_{v} [\sigma]) and that for S_{0}
 c       where the near field is specified by the user 
 c       in row sparse compressed format.
 c
@@ -148,7 +147,7 @@ c           nquad - integer
 c               number of entries in wnear for one kernel
 c
 c        output
-c            wnear - real *16(nquad*3)
+c            wnear - real *8(nquad*5)
 c               the desired near field quadrature
 c               
 c
@@ -163,7 +162,7 @@ c
       real *8, intent(in) :: uvs_targ(2,npts)
       integer, intent(in) :: nnz
       integer, intent(in) :: row_ptr(npts+1),col_ind(nnz),iquad(nnz+1)
-      real *8, intent(out) :: wnear(3*nquad)
+      real *8, intent(out) :: wnear(5*nquad)
 
 
       integer ipars
@@ -178,7 +177,7 @@ c
       integer ipv
 
       procedure (), pointer :: fker
-      external l3d_slp, l3d_sgradu, l3d_sgradv
+      external l3d_slp, l3d_sgradu, l3d_sgradv,l3d_dgradu,l3d_dgradv
 
       done = 1
       pi = atan(done)*4
@@ -194,9 +193,8 @@ c
       ndz = 0
       ndtarg = 12
       if(iquadtype.eq.1) then
-        fker=>l3d_sgradu
         ipv = 1
-
+        fker=>l3d_sgradu
         call dgetnearquad_ggq_guru(npatches,norders,ixyzs,
      1     iptype,npts,srccoefs,srcvals,ndtarg,npts,srcvals,
      1     ipatch_id,uvs_targ,
@@ -214,8 +212,7 @@ c
      1     rfac0,nquad,wnear(nquad+1))
         print *, "done with kernel 2"
 
-        fker=> l3d_slp
-        ipv = 0
+        fker=>l3d_dgradu
         call dgetnearquad_ggq_guru(npatches,norders,ixyzs,
      1     iptype,npts,srccoefs,srcvals,ndtarg,npts,srcvals,
      1     ipatch_id,uvs_targ,
@@ -223,12 +220,31 @@ c
      1     col_ind,iquad,
      1     rfac0,nquad,wnear(2*nquad+1))
         print *, "done with kernel 3"
+
+        fker=>l3d_dgradv
+        call dgetnearquad_ggq_guru(npatches,norders,ixyzs,
+     1     iptype,npts,srccoefs,srcvals,ndtarg,npts,srcvals,
+     1     ipatch_id,uvs_targ,
+     1     eps,ipv,fker,ndd,dpars,ndz,zpars,ndi,ipars,nnz,row_ptr,
+     1     col_ind,iquad,
+     1     rfac0,nquad,wnear(3*nquad+1))
+        print *, "done with kernel 4"
+
+        fker=> l3d_slp
+        ipv = 0
+        call dgetnearquad_ggq_guru(npatches,norders,ixyzs,
+     1     iptype,npts,srccoefs,srcvals,ndtarg,npts,srcvals,
+     1     ipatch_id,uvs_targ,
+     1     eps,ipv,fker,ndd,dpars,ndz,zpars,ndi,ipars,nnz,row_ptr,
+     1     col_ind,iquad,
+     1     rfac0,nquad,wnear(4*nquad+1))
+        print *, "done with kernel 5"
       endif
 
       dpars = 1.0d0/4/pi
 
 C$OMP PARALLEL DO DEFAULT(SHARED)
-      do i=1,3*nquad
+      do i=1,5*nquad
         wnear(i) = wnear(i)*dpars
       enddo
 C$OMP END PARALLEL DO
@@ -411,10 +427,10 @@ c
 c   compute near quadrature correction
 c
       nquad = iquad(nnz+1)-1
-      allocate(wnear(3*nquad))
+      allocate(wnear(5*nquad))
       
 C$OMP PARALLEL DO DEFAULT(SHARED)      
-      do i=1,3*nquad
+      do i=1,5*nquad
         wnear(i) = 0
       enddo
 C$OMP END PARALLEL DO    
@@ -524,7 +540,7 @@ c
 c           nquad - integer
 c               number of entries in wnear
 c
-c           wnear - real *8(nquad)
+c           wnear - real *8(5*nquad)
 c               the near field quadrature correction
 c
 c           sigma - real *8(npts)
@@ -562,7 +578,7 @@ c
       real *8, intent(in) :: srccoefs(9,npts),srcvals(12,npts),eps
       integer, intent(in) :: nnz,row_ptr(npts+1),col_ind(nnz),nquad
       integer, intent(in) :: iquad(nnz+1)
-      real *8, intent(in) :: wnear(3*nquad),sigma(npts)
+      real *8, intent(in) :: wnear(5*nquad),sigma(npts)
       integer, intent(in) :: novers(npatches+1)
       integer, intent(in) :: nptso
       real *8, intent(in) :: srcover(12,nptso),whtsover(nptso)
@@ -577,6 +593,7 @@ c
 
       real *8, allocatable :: pot1(:),grad1(:,:),gradsurf(:,:)
       real *8, allocatable :: gradsurf2(:,:)
+      real *8, allocatable :: gradsurf2over(:,:)
       real *8, allocatable :: ffforminv(:,:,:)
       
       integer ns,nt
@@ -631,7 +648,7 @@ c
       ntarg = npts
       ndtarg = 3
       allocate(sources(3,ns),targvals(3,npts))
-      allocate(charges(ns),dipvec(3,1))
+      allocate(charges(ns),dipvec(3,ns))
       allocate(sigmaover(ns))
 
       allocate(pot1(npts),grad1(3,npts),gradsurf(2,npts))
@@ -757,7 +774,7 @@ C$OMP$PRIVATE(jstart,pottmp,npols)
             gradsurf(2,i) = gradsurf(2,i) + 
      1          wnear(nquad+jquadstart+l-1)*sigma(jstart+l-1)
             pot1(i) = pot1(i) + 
-     1          wnear(2*nquad+jquadstart+l-1)*sigma(jstart+l-1)
+     1          wnear(4*nquad+jquadstart+l-1)*sigma(jstart+l-1)
           enddo
         enddo
       enddo
@@ -767,14 +784,14 @@ C$OMP END PARALLEL DO
 c
 
 C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,jpatch,srctmp2)
-C$OMP$PRIVATE(ctmp2,dtmp2,nss,l,jstart,ii,val,npover,vgrad)
+C$OMP$PRIVATE(ctmp2,nss,l,jstart,ii,val,npover,vgrad)
       do i=1,npts
         nss = 0
         do j=row_ptr(i),row_ptr(i+1)-1
           jpatch = col_ind(j)
           nss = nss + ixyzso(jpatch+1)-ixyzso(jpatch)
         enddo
-        allocate(srctmp2(3,nss),ctmp2(nss),dtmp2(3,1))
+        allocate(srctmp2(3,nss),ctmp2(nss))
 
         ii = 0
         do j=row_ptr(i),row_ptr(i+1)-1
@@ -803,7 +820,7 @@ C$OMP$PRIVATE(ctmp2,dtmp2,nss,l,jstart,ii,val,npover,vgrad)
         gradsurf(2,i) = gradsurf(2,i) - vgrad(1)*srcvals(7,i)
      1        - vgrad(2)*srcvals(8,i) - vgrad(3)*srcvals(9,i)
         pot1(i) = pot1(i) - val
-        deallocate(srctmp2,ctmp2,dtmp2)
+        deallocate(srctmp2,ctmp2)
       enddo
 
 c
@@ -830,16 +847,7 @@ c
       enddo
 
       do i=1,npts
-        pot1(i) = 0
-      enddo
-
-
-
-      call get_surf_div(nd,npatches,norders,ixyzs,iptype,npts,
-     1  srccoefs,srcvals,gradsurf2,pot1)
-
-      do i=1,npts
-        pot1(i) = pot1(i) + rint
+        pot1(i) = rint
       enddo
 
       dpars(1) = over4pi
@@ -847,8 +855,101 @@ c
 
       call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
      1  iptype,npts,srccoefs,srcvals,ndtarg,ntarg,targvals,eps,
-     2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(2*nquad+1),
+     2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(4*nquad+1),
      3  pot1,novers,nptso,ixyzso,srcover,whtsover,pot)
+
+      allocate(gradsurf2over(2,ns))
+      call oversample_fun_surf(2,npatches,norders,ixyzs,iptype, 
+     1    npts,gradsurf2,novers,ixyzso,ns,gradsurf2over)
+
+      do i=1,npts
+        pot1(i) = 0
+      enddo
+
+      do i=1,ns
+        dipvec(1,i) = (gradsurf2over(1,i)*srcover(4,i)+
+     1      gradsurf2over(2,i)*srcover(7,i))*whtsover(i)*over4pi
+        dipvec(2,i) = (gradsurf2over(1,i)*srcover(5,i)+
+     1      gradsurf2over(2,i)*srcover(8,i))*whtsover(i)*over4pi
+        dipvec(3,i) = (gradsurf2over(1,i)*srcover(6,i)+
+     1      gradsurf2over(2,i)*srcover(9,i))*whtsover(i)*over4pi
+        charges(i) = 0
+      enddo
+
+      ifcharge = 0
+      ifdipole = 1
+
+      ifpghtarg = 1
+c
+c
+c       call the fmm
+c
+
+      call lfmm3d(nd,eps,ns,sources,ifcharge,charges,
+     1  ifdipole,dipvec,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
+     1  pot1,grad1,tmp)
+
+
+C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,jpatch,jquadstart)
+C$OMP$PRIVATE(jstart,pottmp,npols)
+      do i=1,ntarg
+        do j=row_ptr(i),row_ptr(i+1)-1
+          jpatch = col_ind(j)
+          npols = ixyzs(jpatch+1)-ixyzs(jpatch)
+          jquadstart = iquad(j)
+          jstart = ixyzs(jpatch) 
+          do l=1,npols
+            pot1(i) = pot1(i) + 
+     1          wnear(2*nquad+jquadstart+l-1)*gradsurf2(1,jstart+l-1)
+            pot1(i) = pot1(i) + 
+     1          wnear(3*nquad+jquadstart+l-1)*gradsurf2(2,jstart+l-1)
+          enddo
+        enddo
+      enddo
+C$OMP END PARALLEL DO
+
+c
+
+C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,jpatch,srctmp2)
+C$OMP$PRIVATE(dtmp2,nss,l,jstart,ii,val,npover)
+      do i=1,ntarg
+        nss = 0
+        do j=row_ptr(i),row_ptr(i+1)-1
+          jpatch = col_ind(j)
+          nss = nss + ixyzso(jpatch+1)-ixyzso(jpatch)
+        enddo
+        allocate(srctmp2(3,nss),dtmp2(3,nss))
+
+        ii = 0
+        do j=row_ptr(i),row_ptr(i+1)-1
+          jpatch = col_ind(j)
+          jstart = ixyzso(jpatch)-1
+          npover = ixyzso(jpatch+1)-ixyzso(jpatch)
+          do l=1,npover
+            ii = ii+1
+            srctmp2(1,ii) = srcover(1,jstart+l)
+            srctmp2(2,ii) = srcover(2,jstart+l)
+            srctmp2(3,ii) = srcover(3,jstart+l)
+
+            dtmp2(1,ii) = dipvec(1,jstart+l)
+            dtmp2(2,ii) = dipvec(2,jstart+l)
+            dtmp2(3,ii) = dipvec(3,jstart+l)
+          enddo
+        enddo
+
+        val = 0
+        call l3ddirectdp(nd,srctmp2,dtmp2,
+     1        nss,targvals(1,i),ntarg0,val,thresh)
+
+        pot1(i) = pot1(i) - val
+
+        deallocate(srctmp2,dtmp2)
+      enddo
+      
+      do i=1,npts
+        pot(i) = pot(i) - pot1(i)
+        pot(i) = -pot1(i)
+      enddo
 
 
       return
@@ -1100,10 +1201,10 @@ c   compute near quadrature correction
 c
       nquad = iquad(nnz+1)-1
       print *, "nquad=",nquad
-      allocate(wnear(3*nquad))
+      allocate(wnear(5*nquad))
       
 C$OMP PARALLEL DO DEFAULT(SHARED)      
-      do i=1,3*nquad
+      do i=1,5*nquad
         wnear(i) = 0
       enddo
 C$OMP END PARALLEL DO    
@@ -1133,7 +1234,7 @@ c
       dpars(2) = 0
       call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
      1  iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
-     2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(2*nquad+1),
+     2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(4*nquad+1),
      3  rhs,novers,npts_over,ixyzso,srcover,wover,rhs2)
       erra = 0
       ra = 0
@@ -1158,7 +1259,8 @@ c       the identity scaling (z) is defined via did below,
 c       and K represents the action of the principal value 
 c       part of the matvec
 c
-      did = 0 
+      did = -0.25d0
+      did = 0
 
 
       niter=0
