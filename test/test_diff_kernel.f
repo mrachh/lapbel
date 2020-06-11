@@ -74,7 +74,7 @@
       xyz_out(3) = 20.1d0
 
       igeomtype = 1
-      ipars(1) = 4
+      ipars(1) = 2
       npatches=12*(4**ipars(1))
 
       norder = 3 
@@ -118,7 +118,7 @@ c
         rrhs(i) = real(rhs(i))
       enddo
 
-      eps = 0.51d-8
+      eps = 0.51d-3
 
 
 c
@@ -238,6 +238,7 @@ c
  
       ntest = 10
       do i=1,ntest
+        pot(i) = 0
         do ipatch=1,npatches
           ifnear = 0
           do l=row_ptr(i),row_ptr(i+1)-1
