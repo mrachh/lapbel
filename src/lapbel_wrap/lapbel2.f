@@ -1241,6 +1241,11 @@ c
 
       print *, "oversampling done"
 
+      call prinf('npts=*',npts,1)
+      call prin2('sigma=*',sigma,24)
+      call prin2('sigmaover=*',sigmaover,24)
+
+
 
 c
 c       set relevatn parameters for the fmm
@@ -1421,15 +1426,15 @@ C$OMP$PRIVATE(nvgrad,nvhess)
         call l3ddirectdg(nd,srctmp2,dtmp2,
      1        nss,targvals(1,i),ntarg0,val,vgrad,thresh)
 
+
+        nvgrad = vgrad(1)*srcvals(10,i) +
+     1           vgrad(2)*srcvals(11,i) +
+     1           vgrad(3)*srcvals(12,i)
  
         call l3ddirectch(nd,srctmp2,ctmp2,
      1        nss,targvals(1,i),ntarg0,val,vgrad,vhess,thresh)
 
        
-
-        nvgrad = vgrad(1)*srcvals(10,i) +
-     1           vgrad(2)*srcvals(11,i) +
-     1           vgrad(3)*srcvals(12,i)
 
 
         nvhess = vhess(1)*srcvals(10,i)*srcvals(10,i) + 
@@ -1447,6 +1452,8 @@ C$OMP$PRIVATE(nvgrad,nvhess)
         pot1(i) = ngradphess(i) - nvgrad - nvhess
         deallocate(srctmp2,ctmp2,dtmp2)
       enddo
+
+      call prin2('pot1=*',pot1,24)
 
       print *, "Subtraction done"
 
@@ -1515,7 +1522,7 @@ c
 C$      t1 = omp_get_wtime()
 
 C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,jpatch,jquadstart)
-C$OMP$PRIVATE(jstart,pottmp,npols)
+C$OMP$PRIVATE(jstart,pottmp,npols,l)
       do i=1,ntarg
         do j=row_ptr(i),row_ptr(i+1)-1
           jpatch = col_ind(j)

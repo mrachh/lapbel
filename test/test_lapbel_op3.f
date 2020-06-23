@@ -73,7 +73,7 @@
       ipars(1) = 3
       npatches=12*(4**ipars(1))
 
-      norder = 3 
+      norder = 5 
       npols = (norder+1)*(norder+2)/2
 
       npts = npatches*npols
