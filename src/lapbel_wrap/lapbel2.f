@@ -1352,7 +1352,7 @@ C$OMP END PARALLEL DO
 C$      t1 = omp_get_wtime()
 
 C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,jpatch,jquadstart)
-C$OMP$PRIVATE(jstart,pottmp,npols)
+C$OMP$PRIVATE(jstart,pottmp,npols,l)
       do i=1,ntarg
         do j=row_ptr(i),row_ptr(i+1)-1
           jpatch = col_ind(j)
@@ -1407,12 +1407,14 @@ C$OMP$PRIVATE(nvgrad,nvhess)
         vgrad(1) = 0
         vgrad(2) = 0
         vgrad(3) = 0
+
         vhess(1) = 0
         vhess(2) = 0
         vhess(3) = 0
         vhess(4) = 0
         vhess(5) = 0
         vhess(6) = 0
+
         nvgrad = 0
         nvhess = 0
 

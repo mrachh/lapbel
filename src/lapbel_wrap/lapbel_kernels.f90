@@ -193,7 +193,7 @@ subroutine l3d_spp_sum_dp(srcinfo,ndt,targinfo,ndd,dpars,ndz,zk, &
 !
 !  second derivative of single layer
 !
-  val = 3*drns**2*r5inv - r3inv
+  val = 3*drnt**2*r5inv - r3inv
 
 !
 ! add in derivative of double layer

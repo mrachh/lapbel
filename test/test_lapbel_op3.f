@@ -235,6 +235,8 @@ C$OMP END PARALLEL DO
       do i=1,npts
         erra=  erra + (pot(i)-rr*rrhs(i))**2*wts(i)
         ra = ra + (rr*rrhs(i))**2*wts(i)
+
+        if(i.le.12) print *, pot(i),rrhs(i),pot(i)/rrhs(i)
       enddo
       erra = sqrt(erra/ra)
       call prin2('error in application of layer potential=*',erra,1)
