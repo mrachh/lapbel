@@ -1,6 +1,6 @@
 EXEC = int2-surflap
-#HOST = gcc
-HOST = gcc-openmp
+HOST = gcc
+#HOST = gcc-openmp
 #HOST = intel
 #HOST = intel-ompenmp
 

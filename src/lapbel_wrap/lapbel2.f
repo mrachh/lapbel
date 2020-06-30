@@ -656,7 +656,7 @@ c
 
       ra = 0
 
-      print *, "oversampling done"
+c      print *, "oversampling done"
 
 
 c
@@ -695,14 +695,14 @@ c
 c
 c       call the fmm
 c
-      print *, "Calling FMM"
+c      print *, "Calling FMM"
 
 
       call lfmm3d(nd,eps,ns,sources,ifcharge,charges,
      1  ifdipole,dipvec,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
      1  pot1,tmp,tmp)
 
-      print *, "FMM call done"
+c      print *, "FMM call done"
 
 
 c
@@ -747,7 +747,7 @@ c
 c       add in precomputed quadrature
 c
 
-      print *, "threshold done"
+c      print *, "threshold done"
 
 
 
@@ -770,7 +770,7 @@ C$OMP$PRIVATE(jstart,pottmp,npols)
       enddo
 C$OMP END PARALLEL DO
 
-      print *, "Near quad addition done"
+c      print *, "Near quad addition done"
 
 
 
@@ -815,7 +815,7 @@ C$OMP$PRIVATE(dtmp2,nss,l,jstart,ii,val,npover,vgrad)
         deallocate(srctmp2,dtmp2)
       enddo
 
-      print *, "Subtraction done"
+c      print *, "Subtraction done"
 
 
 c      pot1 is calculating double layer poential now. Use it as density
@@ -867,14 +867,14 @@ c
 c
 c       call the fmm
 c
-      print *, "Calling FMM"
+c      print *, "Calling FMM"
 
 
       call lfmm3d(nd,eps,ns,sources,ifcharge,charges,
      1  ifdipole,dipvec,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
      1  pot2,tmp,tmp)
 
-      print *, "FMM call done"
+c      print *, "FMM call done"
 
 
       call cpu_time(t1)
@@ -896,7 +896,7 @@ C$OMP$PRIVATE(jstart,pottmp,npols)
       enddo
 C$OMP END PARALLEL DO
 
-      print *, "Near quad addition done"
+c      print *, "Near quad addition done"
 
 
 
@@ -941,7 +941,7 @@ C$OMP$PRIVATE(dtmp2,nss,l,jstart,ii,val,npover,vgrad)
         deallocate(srctmp2,dtmp2)
       enddo
 
-      print *, "Subtraction done"
+c      print *, "Subtraction done"
 
 c     pot2 has D^2 
 
@@ -951,7 +951,7 @@ c     Now calculate SHS'
 
       ra = 0
 
-      print *, "oversampling done"
+c      print *, "oversampling done"
 
 
 c
@@ -990,14 +990,14 @@ c
 c
 c       call the fmm
 c
-      print *, "Calling FMM"
+c      print *, "Calling FMM"
 
 
       call lfmm3d(nd,eps,ns,sources,ifcharge,charges,
      1  ifdipole,dipvec,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
      1  pot1,grad1,tmp)
 
-      print *, "FMM call done"
+c      print *, "FMM call done"
 
 
 C$OMP PARALLEL DO DEFAULT(SHARED)
@@ -1014,7 +1014,7 @@ c
 c       add in precomputed quadrature
 c
 
-      print *, "threshold done"
+c      print *, "threshold done"
 
 
 
@@ -1037,7 +1037,7 @@ C$OMP$PRIVATE(jstart,pottmp,npols)
       enddo
 C$OMP END PARALLEL DO
 
-      print *, "Near quad addition done"
+c      print *, "Near quad addition done"
 
 
 
@@ -1085,7 +1085,7 @@ C$OMP$PRIVATE(ctmp2,nss,l,jstart,ii,val,npover,vgrad,nvgrad)
         deallocate(srctmp2,ctmp2)
       enddo
 
-      print *, "Subtraction done"
+c      print *, "Subtraction done"
 
 
 c     S' calculated
@@ -1111,7 +1111,7 @@ c     Now calculate SHS'
 
       ra = 0
 
-      print *, "oversampling done"
+c      print *, "oversampling done"
 
 
 c
@@ -1150,14 +1150,14 @@ c
 c
 c       call the fmm
 c
-      print *, "Calling FMM"
+c      print *, "Calling FMM"
 
 
       call lfmm3d(nd,eps,ns,sources,ifcharge,charges,
      1  ifdipole,dipvec,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
      1  pot3,tmp,tmp)
 
-      print *, "FMM call done"
+c      print *, "FMM call done"
 
 c
 c
@@ -1183,7 +1183,7 @@ C$OMP$PRIVATE(jstart,pottmp,npols)
       enddo
 C$OMP END PARALLEL DO
 
-      print *, "Near quad addition done"
+c      print *, "Near quad addition done"
 
 
 
@@ -1227,7 +1227,7 @@ C$OMP$PRIVATE(ctmp2,nss,l,jstart,ii,val,npover,vgrad)
         deallocate(srctmp2,ctmp2)
       enddo
 
-      print *, "Subtraction done"
+c      print *, "Subtraction done"
 
 c     SHS' calculated in pot3
 c
@@ -1239,7 +1239,7 @@ c
 
       ra = 0
 
-      print *, "oversampling done"
+c      print *, "oversampling done"
 
       call prinf('npts=*',npts,1)
       call prin2('sigma=*',sigma,24)
@@ -1290,14 +1290,14 @@ c
 c
 c       call the fmm
 c
-      print *, "Calling FMM hess"
+c      print *, "Calling FMM hess"
 
 
       call lfmm3d(nd,eps,ns,sources,ifcharge,charges,
      1  ifdipole,dipvec,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
      1  pot1,grad1,hess1)
 
-      print *, "FMM call done"
+c      print *, "FMM call done"
 
       ifcharge = 0
       ifdipole = 1
@@ -1306,14 +1306,14 @@ c
 c
 c       call the fmm
 c
-      print *, "Calling FMM grad"
+c      print *, "Calling FMM grad"
 
 
       call lfmm3d(nd,eps,ns,sources,ifcharge,charges,
      1  ifdipole,dipvec,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
      1  pot1,grad1,tmp)
 
-      print *, "FMM call done"
+c      print *, "FMM call done"
 
 
 C$OMP PARALLEL DO DEFAULT(SHARED)
@@ -1341,7 +1341,7 @@ c
 c       add in precomputed quadrature
 c
 
-      print *, "threshold done"
+c      print *, "threshold done"
 
 c    Add hessian + grad 
 
@@ -1351,7 +1351,7 @@ C$OMP PARALLEL DO DEFAULT(SHARED)
       enddo
 C$OMP END PARALLEL DO
 
-      print *, "ngradphess computed"
+c      print *, "ngradphess computed"
 
       call cpu_time(t1)
 C$      t1 = omp_get_wtime()
@@ -1372,7 +1372,7 @@ C$OMP$PRIVATE(jstart,pottmp,npols,l)
       enddo
 C$OMP END PARALLEL DO
 
-      print *, "Near quad addition done"
+c      print *, "Near quad addition done"
 
 
 
@@ -1455,7 +1455,7 @@ C$OMP$PRIVATE(nvgrad,nvhess)
 
       call prin2('pot1=*',pot1,24)
 
-      print *, "Subtraction done"
+c      print *, "Subtraction done"
 
 c     pot1 has S'' + D'
 
@@ -1465,7 +1465,7 @@ c     Now calculate S(S'' + D')
 
       ra = 0
 
-      print *, "oversampling done"
+c      print *, "oversampling done"
 
 
 c
@@ -1504,14 +1504,14 @@ c
 c
 c       call the fmm
 c
-      print *, "Calling FMM"
+c      print *, "Calling FMM"
 
 
       call lfmm3d(nd,eps,ns,sources,ifcharge,charges,
      1  ifdipole,dipvec,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
      1  pot4,tmp,tmp)
 
-      print *, "FMM call done"
+c      print *, "FMM call done"
 
 c
 c
@@ -1537,7 +1537,7 @@ C$OMP$PRIVATE(jstart,pottmp,npols,l)
       enddo
 C$OMP END PARALLEL DO
 
-      print *, "Near quad addition done"
+c      print *, "Near quad addition done"
 
 
 
@@ -1581,7 +1581,7 @@ C$OMP$PRIVATE(ctmp2,nss,l,jstart,ii,val,npover,vgrad)
         deallocate(srctmp2,ctmp2)
       enddo
 
-      print *, "Subtraction done"
+c      print *, "Subtraction done"
 
 c     pot4 has S(S'' + D')
 
@@ -1590,8 +1590,8 @@ c     pot4 has S(S'' + D')
 C$OMP PARALLEL DO DEFAULT(SHARED)
       do i=1,npts
 c        pot2 - pot4 - 2*pot3 is layer potential for lapbel
-c        pot(i) = pot2(i) - pot4(i) - 2*pot3(i) 
-        pot(i) = pot1(i) 
+        pot(i) = pot2(i) - pot4(i) - 2*pot3(i) 
+c        pot(i) = pot4(i) 
       enddo
 C$OMP END PARALLEL DO
 

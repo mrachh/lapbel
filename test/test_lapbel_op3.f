@@ -14,13 +14,13 @@
 
       complex *16, allocatable :: rhs(:)
       real *8, allocatable :: sigma(:), pot(:),pot1(:),rrhs(:)
-      real *8, allocatable :: errs(:)
+      real *8, allocatable :: errs(:),rrhs2(:),u(:),rrhs2t(:)
 
-      real *8, allocatable :: wnear(:)
+      real *8, allocatable :: wnear(:),rrhs1(:)
       real *8, allocatable :: targs(:,:)
       real *8, allocatable :: cms(:,:),rads(:),rad_near(:)
       real *8, allocatable :: srcover(:,:),wover(:)
-      real *8, allocatable :: xmat(:,:),xtmp(:,:)
+      real *8, allocatable :: xmat(:,:),xtmp(:,:),slmat(:,:)
       real *8, allocatable :: slapmat(:,:), s0mat(:,:)
 
       real *8, allocatable :: rfds(:)
@@ -34,7 +34,7 @@
 
 
 
-      real *8 thet,phi,eps_gmres
+      real *8 thet,phi,eps_gmres,Wg
       complex * 16 zpars(3)
       integer numit,niter
       character *100 title,dirname
@@ -70,10 +70,10 @@
       xyz_out(3) = 20.1d0
 
       igeomtype = 1
-      ipars(1) = 3
+      ipars(1) = 5
       npatches=12*(4**ipars(1))
 
-      norder = 5 
+      norder = 3 
       npols = (norder+1)*(norder+2)/2
 
       npts = npatches*npols
@@ -94,17 +94,17 @@
       print *, 'npts=',npts
 
       ixyzs(npatches+1) = 1+npols*npatches
-      allocate(wts(npts))
+      allocate(wts(npts),rrhs2t(npts))
       call get_qwts(npatches,norders,ixyzs,iptype,npts,srcvals,wts)
 
 
       allocate(sigma(npts),rhs(npts),pot(npts),rrhs(npts))
-      allocate(ffform(2,2,npts))
-
+      allocate(ffform(2,2,npts),rrhs2(npts),u(npts))
+      allocate(rrhs1(npts))
 c
 c       define rhs to be one of the ynm's
 c
-      nn = 2
+      nn = 4
       mm = 1
       nmax = nn
       allocate(w(0:nmax,0:nmax))
@@ -228,28 +228,26 @@ C$OMP END PARALLEL DO
       erra = 0
       ra = 0
       erra2 = 0
-      rr = ((1.0d0)/((2*nn+1.0d0))) 
+      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
       print *, rr
 
       allocate(pot1(npts))
       do i=1,npts
         erra=  erra + (pot(i)-rr*rrhs(i))**2*wts(i)
         ra = ra + (rr*rrhs(i))**2*wts(i)
-
-        if(i.le.12) print *, pot(i),rrhs(i),pot(i)/rrhs(i)
       enddo
       erra = sqrt(erra/ra)
       call prin2('error in application of layer potential=*',erra,1)
 
-      call prin2('pot=*',pot,24)
-      call prin2('rrhs=*',rrhs,24)
-
-      stop
+c      call prin2('pot=*',pot,24)
+c      call prin2('rrhs=*',rrhs,24)
+     
       call prin2('starting iterative solve*',i,0)
       numit = 50
       allocate(errs(numit+1))
 
       eps_gmres = 1.0d-12
+      
       call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
      1  srcvals,eps,numit,rrhs,eps_gmres,niter,errs,rres,sigma) 
 
@@ -259,6 +257,99 @@ C$OMP END PARALLEL DO
       dpars(1) = 1.0d0/4/pi
       dpars(2) = 0
 
+      erra = 0
+      ra = 0
+      rr = -(2*nn + 1.0d0)/(nn*(nn+1.0d0))
+      do i=1,npts
+        erra=  erra + (sigma(i)-rr*rrhs(i))**2*wts(i)
+        ra = ra + (rr*rrhs(i))**2*wts(i)
+        u(i) = 0
+      enddo
+      erra = sqrt(erra/ra)
+      call prin2('error in calculation of layer density =*',erra,1)
+
+ 
+      dpars(1) = 1.0d0/4/pi
+      dpars(2) = 0
+
+
+      call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
+     1  iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
+     2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(0*nquad+1),
+     3  sigma,novers,npts_over,ixyzso,srcover,wover,u)
+ 
+      erra = 0
+      ra = 0
+      rr = -(1.0d0)/(nn*(nn+1.0d0))
+      do i=1,npts
+        erra=  erra + (u(i)-rr*rrhs(i))**2*wts(i)
+        ra = ra + (rr*rrhs(i))**2*wts(i)
+      enddo
+      erra = sqrt(erra/ra)
+      call prin2('error in SPH solution =*',erra,1)
+
+       
+c100      allocate(slmat(npts,npts))
+
+c      call form_surf_lap_mat(npatches,norders,ixyzs,iptype,npts,
+c     1   srccoefs,srcvals,slmat)
+c      call prin2('slmat=*',slmat,24)
+
+     
+      Wg = 0 
+      do i=1,npts
+        rrhs1(i) = 2*(srcvals(1,i)**2) + 1*(srcvals(2,i)**2) - 1.0d0
+        rrhs2t(i) = 6.0d0 - 3*(4*srcvals(1,i)**2 + 2*srcvals(2,i)**2)
+        u(i) = 0
+        sigma(i) = 0
+        Wg = Wg + rrhs2t(i)*wts(i) 
+      enddo
+
+      call prin2('error in Wg =*',Wg,1)
+
+
+c      call dmatvec(npts,npts,slmat,rrhs1,rrhs2)
+
+
+c      erra = 0
+c      ra = 0
+c      rr = 0
+c      do i=1,npts
+c        erra=  erra + (rrhs2(i)-rrhs2t(i))**2*wts(i)
+c        ra = ra + (rrhs2t(i))**2*wts(i)
+c        rr = rr + (1.0d0)*wts(i)
+c      enddo
+c      rr = (rr - 4*pi)/(4*pi)
+c      erra = sqrt(erra/ra)
+c      call prin2('error in surface laplacian =*',erra,1)
+c      call prin2('error in surface area =*',rr,1) 
+      
+200      eps_gmres = 1.0d-14
+      call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
+     1  srcvals,eps,numit,rrhs2t,eps_gmres,niter,errs,rres,sigma) 
+
+      call prinf('niter=*',niter,1)
+      call prin2('errs=*',errs,niter)
+
+300      dpars(1) = 1.0d0/4/pi
+      dpars(2) = 0
+ 
+
+      call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
+     1  iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
+     2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(0*nquad+1),
+     3  sigma,novers,npts_over,ixyzso,srcover,wover,u)
+ 
+
+      erra = 0
+      ra = 0
+      rr = 1.0d0
+      do i=1,npts
+        erra=  erra + (u(i)-rrhs1(i))**2*wts(i)
+        ra = ra + (rrhs1(i))**2*wts(i)
+      enddo
+      erra = sqrt(erra/ra)
+      call prin2('error in lapbel solution =*',erra,1)
 
 
       stop
