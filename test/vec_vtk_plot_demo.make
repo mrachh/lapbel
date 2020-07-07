@@ -16,6 +16,9 @@ ifneq ($(OS),Windows_NT)
     ifeq ($(UNAME_S),Darwin)
         LDF = /usr/local/lib
     endif
+    ifeq ($(UNAME_S),Linux)
+        LDF = ${HOME}/lib
+    endif
 endif
     
 
@@ -26,7 +29,7 @@ ifeq ($(HOST),gcc)
 endif
 
 ifeq ($(HOST),gcc-openmp)
-    FC = gfortran 
+    FC = gfortran -L${LDF} 
     FFLAGS=-fPIC -O3 -funroll-loops -march=native -fopenmp 
 endif
 
