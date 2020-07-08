@@ -584,7 +584,7 @@ c
 
       real *8, allocatable :: pot1(:),grad1(:,:),gradsurf(:,:),pot2(:)
       real *8, allocatable :: pot3(:),normalgrad(:),pot4(:),hess1(:,:)
-      real *8, allocatable :: gradsurf2(:,:),normalhess(:)
+      real *8, allocatable :: gradsurf2(:,:),normalhess(:),pot5(:)
       real *8, allocatable :: gradsurf2over(:,:),ngradphess(:)
       real *8, allocatable :: ffforminv(:,:,:),curv(:)
       
@@ -641,12 +641,12 @@ c
       ndtarg = 3
       allocate(sources(3,ns),targvals(3,npts))
       allocate(charges(ns),dipvec(3,ns))
-      allocate(sigmaover(ns))
+      allocate(sigmaover(ns),wts(npts))
 
       allocate(pot1(npts),pot2(npts),pot3(npts),grad1(3,npts))
       allocate(gradsurf(2,npts),normalgrad(npts),pot4(npts))
       allocate(curv(npts),normalhess(npts),ngradphess(npts))
-      allocate(hess1(6,npts))
+      allocate(hess1(6,npts),pot5(npts))
 c 
 c       oversample density
 c
@@ -1584,13 +1584,272 @@ C$OMP$PRIVATE(ctmp2,nss,l,jstart,ii,val,npover,vgrad)
 c      print *, "Subtraction done"
 
 c     pot4 has S(S'' + D')
+c
+c     -----Now calculate SWS------ 
+      call oversample_fun_surf(1,npatches,norders,ixyzs,iptype, 
+     1    npts,sigma,novers,ixyzso,ns,sigmaover)
+
+      ra = 0
+
+c      print *, "oversampling done"
+
+
+c
+c       set relevatn parameters for the fmm
+c
+C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i)      
+      do i=1,ns
+        sources(1,i) = srcover(1,i)
+        sources(2,i) = srcover(2,i)
+        sources(3,i) = srcover(3,i)
+
+        charges(i) = sigmaover(i)*whtsover(i)*over4pi 
+      enddo
+C$OMP END PARALLEL DO      
+
+C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i)
+      do i=1,npts
+        targvals(1,i) = srcvals(1,i)
+        targvals(2,i) = srcvals(2,i)
+        targvals(3,i) = srcvals(3,i)
+
+        grad1(1,i) = 0
+        grad1(2,i) = 0
+        grad1(3,i) = 0
+      enddo
+C$OMP END PARALLEL DO      
+
+      ifcharge = 1
+      ifdipole = 0
+
+      ifpghtarg = 1
+c
+c
+c       call the fmm
+c
+c      print *, "Calling FMM"
+
+
+      call lfmm3d(nd,eps,ns,sources,ifcharge,charges,
+     1  ifdipole,dipvec,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
+     1  pot1,tmp,tmp)
+
+c      print *, "FMM call done"
+
+
+
+
+      call cpu_time(t1)
+C$      t1 = omp_get_wtime()
+
+C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,jpatch,jquadstart)
+C$OMP$PRIVATE(jstart,pottmp,npols)
+      do i=1,ntarg
+        do j=row_ptr(i),row_ptr(i+1)-1
+          jpatch = col_ind(j)
+          npols = ixyzs(jpatch+1)-ixyzs(jpatch)
+          jquadstart = iquad(j)
+          jstart = ixyzs(jpatch) 
+          do l=1,npols
+            pot1(i) = pot1(i) + 
+     1          wnear(0*nquad+jquadstart+l-1)*sigma(jstart+l-1)
+          enddo
+        enddo
+      enddo
+C$OMP END PARALLEL DO
+
+c      print *, "Near quad addition done"
+
+
+
+c
+
+C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,jpatch,srctmp2)
+C$OMP$PRIVATE(ctmp2,nss,l,jstart,ii,val,npover,vgrad)
+      do i=1,npts
+        nss = 0
+        do j=row_ptr(i),row_ptr(i+1)-1
+          jpatch = col_ind(j)
+          nss = nss + ixyzso(jpatch+1)-ixyzso(jpatch)
+        enddo
+        allocate(srctmp2(3,nss),ctmp2(nss))
+
+        ii = 0
+        do j=row_ptr(i),row_ptr(i+1)-1
+          jpatch = col_ind(j)
+          jstart = ixyzso(jpatch)-1
+          npover = ixyzso(jpatch+1)-ixyzso(jpatch)
+          do l=1,npover
+            ii = ii+1
+            srctmp2(1,ii) = srcover(1,jstart+l)
+            srctmp2(2,ii) = srcover(2,jstart+l)
+            srctmp2(3,ii) = srcover(3,jstart+l)
+
+
+            ctmp2(ii) = charges(jstart+l)
+ 
+          enddo
+        enddo
+
+        val = 0
+        vgrad(1) = 0
+        vgrad(2) = 0
+        vgrad(3) = 0
+
+        call l3ddirectcp(nd,srctmp2,ctmp2,
+     1        nss,targvals(1,i),ntarg0,val,thresh)
+        pot1(i) = pot1(i) - val
+        deallocate(srctmp2,ctmp2)
+      enddo
+
+c      print *, "Subtraction done"
+
+c      pot1 has S, now apply W
+      call get_qwts(npatches,norders,ixyzs,iptype,npts,srcvals,wts)
+
+      rint = 0
+
+      do i=1,npts
+        rint  = rint + pot1(i)*wts(i) 
+      enddo
+
+
+C$OMP PARALLEL DO DEFAULT(SHARED)
+      do i=1,npts
+        pot1(i) = rint 
+      enddo
+C$OMP END PARALLEL DO
+
+c     pot1 has WS
+c     Now calculate SWS   
+      call oversample_fun_surf(1,npatches,norders,ixyzs,iptype, 
+     1    npts,pot1,novers,ixyzso,ns,sigmaover)
+
+      ra = 0
+
+c      print *, "oversampling done"
+
+
+c
+c       set relevatn parameters for the fmm
+c
+C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i)      
+      do i=1,ns
+        sources(1,i) = srcover(1,i)
+        sources(2,i) = srcover(2,i)
+        sources(3,i) = srcover(3,i)
+
+        charges(i) = sigmaover(i)*whtsover(i)*over4pi
+        dipvec(1,i) = sigmaover(i)*whtsover(i)*srcover(10,i)*over4pi
+        dipvec(2,i) = sigmaover(i)*whtsover(i)*srcover(11,i)*over4pi
+        dipvec(3,i) = sigmaover(i)*whtsover(i)*srcover(12,i)*over4pi
+ 
+      enddo
+C$OMP END PARALLEL DO      
+
+C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i)
+      do i=1,npts
+        targvals(1,i) = srcvals(1,i)
+        targvals(2,i) = srcvals(2,i)
+        targvals(3,i) = srcvals(3,i)
+
+        grad1(1,i) = 0
+        grad1(2,i) = 0
+        grad1(3,i) = 0
+      enddo
+C$OMP END PARALLEL DO      
+
+      ifcharge = 1
+      ifdipole = 0
+      ifpghtarg = 1
+c
+c
+c       call the fmm
+c
+c      print *, "Calling FMM"
+
+
+      call lfmm3d(nd,eps,ns,sources,ifcharge,charges,
+     1  ifdipole,dipvec,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
+     1  pot5,tmp,tmp)
+
+c      print *, "FMM call done"
+
+c
+c
+c       add in precomputed quadrature
+c
+
+      call cpu_time(t1)
+C$      t1 = omp_get_wtime()
+
+C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,jpatch,jquadstart)
+C$OMP$PRIVATE(jstart,pottmp,npols)
+      do i=1,ntarg
+        do j=row_ptr(i),row_ptr(i+1)-1
+          jpatch = col_ind(j)
+          npols = ixyzs(jpatch+1)-ixyzs(jpatch)
+          jquadstart = iquad(j)
+          jstart = ixyzs(jpatch) 
+          do l=1,npols
+            pot5(i) = pot5(i) + 
+     1          wnear(0*nquad+jquadstart+l-1)*pot1(jstart+l-1)
+          enddo
+        enddo
+      enddo
+C$OMP END PARALLEL DO
+
+c      print *, "Near quad addition done"
+
+
+
+c
+
+C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,jpatch,srctmp2)
+C$OMP$PRIVATE(ctmp2,nss,l,jstart,ii,val,npover,vgrad)
+      do i=1,npts
+        nss = 0
+        do j=row_ptr(i),row_ptr(i+1)-1
+          jpatch = col_ind(j)
+          nss = nss + ixyzso(jpatch+1)-ixyzso(jpatch)
+        enddo
+        allocate(srctmp2(3,nss),ctmp2(nss))
+
+        ii = 0
+        do j=row_ptr(i),row_ptr(i+1)-1
+          jpatch = col_ind(j)
+          jstart = ixyzso(jpatch)-1
+          npover = ixyzso(jpatch+1)-ixyzso(jpatch)
+          do l=1,npover
+            ii = ii+1
+            srctmp2(1,ii) = srcover(1,jstart+l)
+            srctmp2(2,ii) = srcover(2,jstart+l)
+            srctmp2(3,ii) = srcover(3,jstart+l)
+
+            ctmp2(ii) = charges(jstart+l)
+ 
+          enddo
+        enddo
+
+        val = 0
+        vgrad(1) = 0
+        vgrad(2) = 0
+        vgrad(3) = 0
+
+        call l3ddirectcp(nd,srctmp2,ctmp2,
+     1        nss,targvals(1,i),ntarg0,val,thresh)
+
+        pot5(i) = pot5(i) - val
+        deallocate(srctmp2,ctmp2)
+      enddo
+
 
 
 
 C$OMP PARALLEL DO DEFAULT(SHARED)
       do i=1,npts
 c        pot2 - pot4 - 2*pot3 is layer potential for lapbel
-        pot(i) = pot2(i) - pot4(i) - 2*pot3(i) 
+        pot(i) = pot2(i) - pot4(i) - 2*pot3(i)+pot5(i) 
 c        pot(i) = pot4(i) 
       enddo
 C$OMP END PARALLEL DO
