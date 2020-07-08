@@ -32,7 +32,7 @@
 
       if(igeomtype.eq.4) then
         ipars(1) = 20
-        ipars(2) = 5
+        ipars(2) = 10
         npatches = 2*ipars(1)*ipars(2)
         fname = 'torus.vtk'
       endif
@@ -41,7 +41,7 @@
       npols = (norder+1)*(norder+2)/2
       npts = npatches*npols
 
-      print *, npatches,npts,norder,igeomtype,ipars(1),ipars(2)
+      print *, npatches,npts,norder,igeomtype,ipars(1)
       allocate(srccoefs(9,npts),srcvals(12,npts))
       call setup_geom(igeomtype,norder,npatches,ipars, 
      1    srcvals,srccoefs,ifplot,fname)
@@ -54,7 +54,7 @@
       enddo
       ixyzs(npatches+1) = npts+1
 
-      allocate(pdis(npts),wts(npts))
+      allocate(pdis(npatches),wts(npts))
 
       call get_qwts(npatches,norders,ixyzs,iptype,npts,srcvals,wts)
 
@@ -64,12 +64,15 @@
 
       pmax = 0.0d0
 
+
       call get_patch_distortion(npatches,norders,ixyzs,iptype,npts,
      1   srccoefs,srcvals,wts,pdis)
 
       call prin2('pdis=*',pdis,24)
+
       pmax = maxval(pdis)
       call prin2('max patch distortion=*',pmax,1)
+      stop
 
       stop
       end
