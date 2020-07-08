@@ -70,8 +70,17 @@
       xyz_out(3) = 20.1d0
 
       igeomtype = 2
-      ipars(1) = 3
-      npatches=12*(4**ipars(1))
+
+      if(igeomtype.eq.1) then
+        ipars(1) = 3
+        npatches=12*(4**ipars(1))
+      endif
+
+      if(igeomtype.eq.2) then
+        ipars(1) = 20
+        ipars(2) = ipars(1)*3
+        npatches = 2*ipars(1)*ipars(2)
+      endif
 
       norder = 3 
       npols = (norder+1)*(norder+2)/2
@@ -212,6 +221,8 @@ C$OMP END PARALLEL DO
       call prinf('finished generating far field orders*',i,0)
       call prinf('npts_over=*',npts_over,1)
       call prin2('eps=*',eps,1)
+
+      stop
 
       iquadtype = 1
 
