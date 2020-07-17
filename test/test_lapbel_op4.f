@@ -69,14 +69,43 @@
       xyz_out(2) = 3.1d0
       xyz_out(3) = 20.1d0
 
-      igeomtype = 1
-      ipars(1) = 3
-      npatches=12*(4**ipars(1))
-      norder = 4
-      fname = 'op3_sph34'
-      fname1 = 'op3_sph34_psi.vtk'
-      fname2 = 'op3_sph34_f.vtk'
-      fname3 = 'op3_sph34_psiapp.vtk' 
+      
+
+      igeomtype = 4
+
+      if(igeomtype.eq.1) then
+        ipars(1) = 3
+        npatches=12*(4**ipars(1))
+        fname='sphere.vtk'
+      endif
+
+      if(igeomtype.eq.2) then
+        ipars(1) = 15
+        ipars(2) = ipars(1)*3
+        npatches = 2*ipars(1)*ipars(2)
+        fname='stell.vtk'
+      endif
+
+      if(igeomtype.eq.3) then
+        ipars(1) = 40
+        ipars(2) = 20
+        npatches = 2*ipars(1)*ipars(2)
+        fname='wtorus.vtk'
+      endif
+
+      if(igeomtype.eq.4) then
+        ipars(1) = 40
+        ipars(2) = 20
+        npatches = 2*ipars(1)*ipars(2)
+        fname = 'torus.vtk'
+      endif
+
+
+      norder = 2
+      fname = 'op3_tor40_20_2'
+      fname1 = 'op3_tor40_20_2_psi.vtk'
+      fname2 = 'op3_tor40_20_2_f.vtk'
+      fname3 = 'op3_tor40_20_2_psiapp.vtk' 
       npols = (norder+1)*(norder+2)/2
 
       npts = npatches*npols
@@ -249,66 +278,30 @@ c      call prin2('rrhs=*',rrhs,24)
       numit = 50
       allocate(errs(numit+1))
 
-      eps_gmres = 1.0d-14
+      eps_gmres = 1.0d-16
       
-      call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
-     1  srcvals,eps,numit,rrhs,eps_gmres,niter,errs,rres,sigma) 
-
-      call prinf('niter=*',niter,1)
-      call prin2('errs=*',errs,niter)
-
-      dpars(1) = 1.0d0/4/pi
-      dpars(2) = 0
-
-      erra = 0
-      ra = 0
-      rr = -(2*nn + 1.0d0)/(nn*(nn+1.0d0))
-      do i=1,npts
-        erra=  erra + (sigma(i)-rr*rrhs(i))**2*wts(i)
-        ra = ra + (rr*rrhs(i))**2*wts(i)
-        u(i) = 0
-      enddo
-      erra = sqrt(erra/ra)
-      call prin2('error in calculation of layer density =*',erra,1)
-
- 
-      dpars(1) = 1.0d0/4/pi
-      dpars(2) = 0
-
-
-      call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
-     1  iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
-     2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(0*nquad+1),
-     3  sigma,novers,npts_over,ixyzso,srcover,wover,u)
- 
-      erra = 0
-      ra = 0
-      rr = -(1.0d0)/(nn*(nn+1.0d0))
-      do i=1,npts
-        erra=  erra + (u(i)-rr*rrhs(i))**2*wts(i)
-        ra = ra + (rr*rrhs(i))**2*wts(i)
-      enddo
-      erra = sqrt(erra/ra)
-      call prin2('error in SPH solution =*',erra,1)
-
        
-c100      allocate(slmat(npts,npts))
+100      allocate(slmat(npts,npts))
 
-c      call form_surf_lap_mat(npatches,norders,ixyzs,iptype,npts,
-c     1   srccoefs,srcvals,slmat)
+      call form_surf_lap_mat(npatches,norders,ixyzs,iptype,npts,
+     1   srccoefs,srcvals,slmat)
 c      call prin2('slmat=*',slmat,24)
 
      
       Wg = 0 
       do i=1,npts
-        rrhs1(i) = 2*(srcvals(1,i)**2)+2*(srcvals(2,i)**2)-4.0d0/3.0d0 
-        rrhs2t(i) = 8.0d0 - 3*(4*srcvals(1,i)**2 + 4*srcvals(2,i)**2)
+        rrhs1(i) = srcvals(3,i) 
+        rrhs2t(i) =-srcvals(3,i)*(sqrt(srcvals(1,i)**2+srcvals(2,i)**2))
+        rrhs2t(i)=rrhs2t(i)+srcvals(3,i)*(2.25-sqrt(srcvals(1,i)**2+
+     1                 srcvals(2,i)**2))
+        rrhs2t(i)=1.0d0/(0.75**2*sqrt(srcvals(1,i)**2+srcvals(2,i)**2))*
+     1            rrhs2t(i)    
         u(i) = 0
         sigma(i) = 0
         Wg = Wg + rrhs2t(i)*wts(i) 
       enddo
 
-      call prin2('error in Wg =*',Wg,1)
+      call prin2('mean of rrhs2t =*',Wg,1)
       call surf_vtk_plot_scalar(npatches,norders,ixyzs,iptype,
      1   npts,srccoefs,srcvals,rrhs1,fname1,'psi')
 
@@ -317,23 +310,40 @@ c      call prin2('slmat=*',slmat,24)
 
 
 
-c      call dmatvec(npts,npts,slmat,rrhs1,rrhs2)
+      call dmatvec(npts,npts,slmat,rrhs1,rrhs2)
+
+      erra = 0
+      ra = 0
+      rr = 0
+      do i=1,npts
+        erra=  erra + (rrhs1(i))*wts(i)
+      enddo
+      call prin2('mean of rrhs1 =*',erra,1)
+
+      erra = 0
+      ra = 0
+      rr = 0
+      do i=1,npts
+        erra=  erra + (rrhs2t(i))*wts(i)
+      enddo
+      call prin2('mean of rrhs2t =*',erra,1)
 
 
-c      erra = 0
-c      ra = 0
-c      rr = 0
-c      do i=1,npts
-c        erra=  erra + (rrhs2(i)-rrhs2t(i))**2*wts(i)
-c        ra = ra + (rrhs2t(i))**2*wts(i)
-c        rr = rr + (1.0d0)*wts(i)
-c      enddo
-c      rr = (rr - 4*pi)/(4*pi)
-c      erra = sqrt(erra/ra)
-c      call prin2('error in surface laplacian =*',erra,1)
-c      call prin2('error in surface area =*',rr,1) 
+      erra = 0
+      ra = 0
+      rr = 0
+      do i=1,npts
+        erra=  erra + (rrhs2(i)-rrhs2t(i))**2*wts(i)
+        ra = ra + (rrhs2t(i))**2*wts(i)
+        rr = rr + (1.0d0)*wts(i)
+      enddo
+      rr = (rr - 4*(pi**2)*2.25*0.75)/(4*(pi**2)*2.25*0.75)
+      erra = sqrt(erra/ra)
+      call prin2('error in surface laplacian =*',erra,1)
+      call prin2('error in surface area =*',rr,1) 
+
       
-200      eps_gmres = 1.0d-14
+200      eps_gmres = 1.0d-16
       call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
      1  srcvals,eps,numit,rrhs2t,eps_gmres,niter,errs,rres,sigma) 
 
@@ -401,7 +411,7 @@ c    Subtract const from u to make integral zero
       procedure (), pointer :: xtri_geometry
 
 
-      external xtri_stell_eval,xtri_sphere_eval
+      external xtri_stell_eval,xtri_sphere_eval,xtri_wtorus_eval
       
       npols = (norder+1)*(norder+2)/2
       allocate(uvs(2,npols),umatr(npols,npols),vmatr(npols,npols))
@@ -481,10 +491,95 @@ c    Subtract const from u to make integral zero
         call getgeominfo(npatches,xtri_geometry,ptr1,ptr2,iptr3,iptr4,
      1     npols,uvs,umatr,srcvals,srccoefs)
       endif
+
+      if(igeomtype.eq.3) then
+        done = 1
+        pi = atan(done)*4
+        umin = 0
+        umax = 2*pi
+        vmin = 0
+        vmax = 2*pi
+        allocate(triaskel(3,3,npatches))
+        nover = 0
+        call xtri_rectmesh_ani(umin,umax,vmin,vmax,ipars(1),ipars(2),
+     1     nover,npatches,npatches,triaskel)
+        call prinf('npatches=*',npatches,1)
+         
+        p1(1) = 1
+        p1(2) = 2
+        p1(3) = 0.25d0
+
+        p2(1) = 1.2d0
+        p2(2) = 1.0d0
+        p2(3) = 1.7d0
+
+c
+c         numberof oscillations
+c
+        p4(1) = 5.0d0
+
+
+        ptr1 => triaskel(1,1,1)
+        ptr2 => p1(1)
+        ptr3 => p2(1)
+        ptr4 => p4(1)
+        xtri_geometry => xtri_wtorus_eval
+        if(ifplot.eq.1) then
+           call xtri_vtk_surf(fname,npatches,xtri_geometry, ptr1,ptr2, 
+     1         ptr3,ptr4, norder,
+     2         'Triangulated surface of the wtorus')
+        endif
+
+
+        call getgeominfo(npatches,xtri_geometry,ptr1,ptr2,ptr3,ptr4,
+     1     npols,uvs,umatr,srcvals,srccoefs)
+      endif
+      
+      if(igeomtype.eq.4) then
+        done = 1
+        pi = atan(done)*4
+        umin = 0
+        umax = 2*pi
+        vmin = 0
+        vmax = 2*pi
+        allocate(triaskel(3,3,npatches))
+        nover = 0
+        call xtri_rectmesh_ani(umin,umax,vmin,vmax,ipars(1),ipars(2),
+     1     nover,npatches,npatches,triaskel)
+        call prinf('npatches=*',npatches,1)
+         
+        p1(1) = 0.75d0
+        p1(2) = 2
+        p1(3) = 0.25d0
+
+        p2(1) = 1.0d0
+        p2(2) = 1.0d0
+        p2(3) = 1.0d0
+
+c
+c         number of oscillations
+c
+        p4(1) = 0.0d0
+
+
+        ptr1 => triaskel(1,1,1)
+        ptr2 => p1(1)
+        ptr3 => p2(1)
+        ptr4 => p4(1)
+        xtri_geometry => xtri_wtorus_eval
+        if(ifplot.eq.1) then
+           call xtri_vtk_surf(fname,npatches,xtri_geometry, ptr1,ptr2, 
+     1         ptr3,ptr4, norder,
+     2         'Triangulated surface of the torus')
+        endif
+
+
+        call getgeominfo(npatches,xtri_geometry,ptr1,ptr2,ptr3,ptr4,
+     1     npols,uvs,umatr,srcvals,srccoefs)
+      endif
       
       return  
       end
-
 
       subroutine test_exterior_pt(npatches,norder,npts,srcvals,
      1   srccoefs,wts,xyzout,isout)

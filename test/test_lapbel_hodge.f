@@ -38,7 +38,7 @@
       complex * 16 zpars(3)
       integer numit,niter
       character *100 title,dirname
-      character *300 fname
+      character *300 fname,fname1,fname2,fname3,fname4
 
       real *8, allocatable :: w(:,:)
 
@@ -74,15 +74,36 @@
       if(igeomtype.eq.1) then
         ipars(1) = 3
         npatches=12*(4**ipars(1))
+        fname='sphere.vtk'
       endif
 
       if(igeomtype.eq.2) then
         ipars(1) = 20
         ipars(2) = ipars(1)*3
         npatches = 2*ipars(1)*ipars(2)
+        fname='stell.vtk'
       endif
 
-      norder = 3 
+      if(igeomtype.eq.3) then
+        ipars(1) = 40
+        ipars(2) = 20
+        npatches = 2*ipars(1)*ipars(2)
+        fname='wtorus.vtk'
+      endif
+
+      if(igeomtype.eq.4) then
+        ipars(1) = 40
+        ipars(2) = 20
+        npatches = 2*ipars(1)*ipars(2)
+        fname = 'torus.vtk'
+      endif
+      
+      fname1='stell_hodge_tanproj_20_8.vtk'
+      fname2='stell_hodge_dfree_20_8.vtk'
+      fname3='stell_hodge_cfree_20_8.vtk'
+      fname4='stell_hodge_harm_20_8.vtk'
+ 
+      norder = 8 
       npols = (norder+1)*(norder+2)/2
 
       npts = npatches*npols
@@ -222,7 +243,7 @@ C$OMP END PARALLEL DO
       call prinf('npts_over=*',npts_over,1)
       call prin2('eps=*',eps,1)
 
-      stop
+      
 
       iquadtype = 1
 
@@ -233,28 +254,7 @@ C$OMP END PARALLEL DO
       call prinf('finished generating near quadrature correction*',i,0)
 
 
-      call prinf('entering layer potential eval*',i,0)
-      call prinf('npts=*',npts,1)
-
-      call lpcomp_lap_bel_addsub2(npatches,norders,ixyzs,iptype,npts,
-     1  srccoefs,srcvals,eps,nnz,row_ptr,col_ind,iquad,nquad,wnear,
-     2  rrhs,novers,npts_over,ixyzso,srcover,wover,pot)
-
-      erra = 0
-      ra = 0
-      erra2 = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      print *, rr
-
-      allocate(pot1(npts))
-      do i=1,npts
-        erra=  erra + (pot(i)-rr*rrhs(i))**2*wts(i)
-        ra = ra + (rr*rrhs(i))**2*wts(i)
-      enddo
-      erra = sqrt(erra/ra)
-      call prin2('error in application of layer potential=*',erra,1)
-
-
+      
 c     Evaluate DL on surface to check geometry info
       dpars(2) = 1.0d0/4/pi
       dpars(1) = 0
@@ -305,9 +305,9 @@ c      call prin2('rrhs=*',rrhs,24)
         nFt(3,i)=-1.0d0*srcvals(2,i)
 
         rrhs2t(i) = -2.0d0*srcvals(1,i)
-        V(1,i) = 0.0d0
-        V(2,i) = 0.0d0
-        V(3,i) = srcvals(3,i)
+        V(1,i) = sin(srcvals(1,i))**2
+        V(2,i) = sin(srcvals(1,i)**2)
+        V(3,i) = sin(srcvals(3,i))
         Ft(1,i)=-srcvals(1,i)*srcvals(3,i)**2
         Ft(2,i)=-srcvals(2,i)*srcvals(3,i)**2
         Ft(3,i)=srcvals(3,i)-srcvals(3,i)**3 
@@ -324,19 +324,23 @@ c      call prin2('rrhs=*',rrhs,24)
         alpha(i) = 0
         beta(i) = 0
       enddo
+ 
+      call biot_savart(npatches,norders,ixyzs,iptype,npts,
+     1   srccoefs,srcvals,V)
 
-      fname = 'sphere_lapbel.vtk'
-      title = 'f(x)'
+
+      
+      title = 'u(x)'
       call surf_vtk_plot_scalar(npatches,norders,ixyzs,iptype,
      1   npts,srccoefs,srcvals,u,fname,title)
 
       do i=1,npts
         Wg = Wg + (1.0d0)**2*wts(i) 
       enddo
-      Wg = (Wg - 4*pi)/(4*pi)
-      call prin2('Error in area of sphere=*',Wg,1)
+      Wg = (Wg )
+      call prin2('area of surface=*',Wg,1)
 
-     
+ 
 
       call surf_grad(npatches,norders,ixyzs,iptype,npts,
      1   srccoefs,srcvals,u,sgalpha)
@@ -395,7 +399,10 @@ c      call prin2('rrhs=*',rrhs,24)
       erra = sqrt(erra/ra)
       call prin2('error in tangential proj=*',erra,1)
 
-     
+      call surf_vtk_plot_vec(npatches,norders,ixyzs,iptype,
+     1  npts,srccoefs,srcvals,F,fname1,'F') 
+
+    
 
       call ncross(npatches,norders,ixyzs,iptype,npts,
      1   srccoefs,srcvals,F,nF)
@@ -466,7 +473,8 @@ c    Surface integral should be zero
         Wu = Wu + rrhs2(i)*wts(i) 
       enddo
       call prin2('surface integral of rrhs2=*',Wu,1)
- 
+
+       
 
 200      eps_gmres = 1.0d-14
       call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
@@ -548,6 +556,15 @@ c    Surface integral should be zero
       call ncross(npatches,norders,ixyzs,iptype,npts,
      1   srccoefs,srcvals,sgbeta,nsgbeta)
 
+      call surf_vtk_plot_vec(npatches,norders,ixyzs,iptype,
+     1  npts,srccoefs,srcvals,sgalpha,fname2,
+     1  'sg_alpha') 
+
+      call surf_vtk_plot_vec(npatches,norders,ixyzs,iptype,
+     1  npts,srccoefs,srcvals,nsgbeta,fname3,'nsg_beta') 
+
+
+
 C$OMP PARALLEL DO DEFAULT(SHARED)      
       do i=1,npts 
         H(1,i) = F(1,i)-sgalpha(1,i)-nsgbeta(1,i)
@@ -566,7 +583,23 @@ C$OMP END PARALLEL DO
 
       enddo
       erra = sqrt(erra)
-      call prin2('norm of harmonic H=*',erra,1)
+      call prin2('L2 norm of harmonic H=*',erra,1)
+
+      erra = 0
+      ra = 0
+      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
+      do i=1,npts
+        erra=erra+((H(1,i))**2)
+        erra=erra+((H(2,i))**2)
+        erra=erra+((H(3,i))**2) 
+        erra = sqrt(erra)
+        ra = max(ra, erra)
+        erra = 0.0d0
+      enddo
+      call prin2('L_inf norm of harmonic H=*',ra,1)
+
+      call surf_vtk_plot_vec(npatches,norders,ixyzs,iptype,
+     1  npts,srccoefs,srcvals,H,fname4,'H') 
 
 
 
@@ -579,6 +612,7 @@ C$OMP END PARALLEL DO
       do i=1,npts
         erra=  erra + ((rrhs1(i))**2)*wts(i)
       enddo
+      erra = sqrt(erra)
       call prin2('harmonic comp error in div =*',erra,1)
 
 
@@ -595,6 +629,7 @@ C$OMP END PARALLEL DO
       do i=1,npts
         erra=  erra + ((rrhs2(i))**2)*wts(i)
       enddo
+      erra = sqrt(erra)
       call prin2('harmonic comp error in curl =*',erra,1)
 
 
@@ -602,6 +637,7 @@ C$OMP END PARALLEL DO
       
       stop
       end
+
 
 
 
@@ -625,7 +661,7 @@ C$OMP END PARALLEL DO
       procedure (), pointer :: xtri_geometry
 
 
-      external xtri_stell_eval,xtri_sphere_eval
+      external xtri_stell_eval,xtri_sphere_eval,xtri_wtorus_eval
       
       npols = (norder+1)*(norder+2)/2
       allocate(uvs(2,npols),umatr(npols,npols),vmatr(npols,npols))
@@ -703,6 +739,92 @@ C$OMP END PARALLEL DO
         endif
 
         call getgeominfo(npatches,xtri_geometry,ptr1,ptr2,iptr3,iptr4,
+     1     npols,uvs,umatr,srcvals,srccoefs)
+      endif
+
+      if(igeomtype.eq.3) then
+        done = 1
+        pi = atan(done)*4
+        umin = 0
+        umax = 2*pi
+        vmin = 0
+        vmax = 2*pi
+        allocate(triaskel(3,3,npatches))
+        nover = 0
+        call xtri_rectmesh_ani(umin,umax,vmin,vmax,ipars(1),ipars(2),
+     1     nover,npatches,npatches,triaskel)
+        call prinf('npatches=*',npatches,1)
+         
+        p1(1) = 1
+        p1(2) = 2
+        p1(3) = 0.25d0
+
+        p2(1) = 1.2d0
+        p2(2) = 1.0d0
+        p2(3) = 1.7d0
+
+c
+c         numberof oscillations
+c
+        p4(1) = 5.0d0
+
+
+        ptr1 => triaskel(1,1,1)
+        ptr2 => p1(1)
+        ptr3 => p2(1)
+        ptr4 => p4(1)
+        xtri_geometry => xtri_wtorus_eval
+        if(ifplot.eq.1) then
+           call xtri_vtk_surf(fname,npatches,xtri_geometry, ptr1,ptr2, 
+     1         ptr3,ptr4, norder,
+     2         'Triangulated surface of the wtorus')
+        endif
+
+
+        call getgeominfo(npatches,xtri_geometry,ptr1,ptr2,ptr3,ptr4,
+     1     npols,uvs,umatr,srcvals,srccoefs)
+      endif
+      
+      if(igeomtype.eq.4) then
+        done = 1
+        pi = atan(done)*4
+        umin = 0
+        umax = 2*pi
+        vmin = 0
+        vmax = 2*pi
+        allocate(triaskel(3,3,npatches))
+        nover = 0
+        call xtri_rectmesh_ani(umin,umax,vmin,vmax,ipars(1),ipars(2),
+     1     nover,npatches,npatches,triaskel)
+        call prinf('npatches=*',npatches,1)
+         
+        p1(1) = 0.75d0
+        p1(2) = 2
+        p1(3) = 0.25d0
+
+        p2(1) = 1.0d0
+        p2(2) = 1.0d0
+        p2(3) = 1.0d0
+
+c
+c         number of oscillations
+c
+        p4(1) = 0.0d0
+
+
+        ptr1 => triaskel(1,1,1)
+        ptr2 => p1(1)
+        ptr3 => p2(1)
+        ptr4 => p4(1)
+        xtri_geometry => xtri_wtorus_eval
+        if(ifplot.eq.1) then
+           call xtri_vtk_surf(fname,npatches,xtri_geometry, ptr1,ptr2, 
+     1         ptr3,ptr4, norder,
+     2         'Triangulated surface of the torus')
+        endif
+
+
+        call getgeominfo(npatches,xtri_geometry,ptr1,ptr2,ptr3,ptr4,
      1     npols,uvs,umatr,srcvals,srccoefs)
       endif
       
@@ -867,6 +989,40 @@ c
         F(1,i) = V(1,i)-srcvals(10,i)*ndotV
         F(2,i) = V(2,i)-srcvals(11,i)*ndotV
         F(3,i) = V(3,i)-srcvals(12,i)*ndotV 
+      enddo
+
+      return
+      end
+
+
+      subroutine biot_savart(npatches,norders,ixyzs,iptype,
+     1   npts,srccoefs,srcvals,V) 
+      implicit none
+      integer  npatches,norders(npatches)
+      integer  ixyzs(npatches+1),iptype(npatches)
+      integer  npts
+      real *8  srccoefs(9,npts),srcvals(12,npts)
+      real *8  V(3,npts)
+      integer i
+      real *8 lcross(3,npts),l(3),nrm
+
+      l(1) = 0.0d0
+      l(2) = 1.0d0
+      l(3) = 1.0d0
+      do i=1,npts
+        lcross(1,i) = l(2)*(srcvals(3,i)-0.2)-l(3)*(srcvals(2,i)-0.2) 
+        lcross(2,i) = l(3)*(srcvals(1,i)-0.2)-l(1)*(srcvals(3,i)-0.2) 
+        lcross(3,i) = l(1)*(srcvals(2,i)-0.2)-l(2)*(srcvals(1,i)-0.2) 
+      enddo
+
+
+      do i=1,npts
+        nrm = (srcvals(1,i)-0.2)**2+(srcvals(2,i)-0.2)**2
+     1           +(srcvals(3,i)-0.2)**2
+        nrm = nrm**(1.5)
+        V(1,i) = lcross(1,i)/nrm
+        V(2,i) = lcross(2,i)/nrm
+        V(3,i) = lcross(3,i)/nrm 
       enddo
 
       return

@@ -70,13 +70,13 @@
       xyz_out(3) = 20.1d0
 
       igeomtype = 1
-      ipars(1) = 3
+      ipars(1) = 2
       npatches=12*(4**ipars(1))
-      norder = 4
-      fname = 'op3_sph34'
-      fname1 = 'op3_sph34_psi.vtk'
-      fname2 = 'op3_sph34_f.vtk'
-      fname3 = 'op3_sph34_psiapp.vtk' 
+      norder = 8
+      fname = 'op5_sph28'
+      fname1 = 'op5_sph28_psi.vtk'
+      fname2 = 'op5_sph28_f.vtk'
+      fname3 = 'op5_sph28_psiapp.vtk' 
       npols = (norder+1)*(norder+2)/2
 
       npts = npatches*npols
@@ -214,7 +214,7 @@ C$OMP END PARALLEL DO
 
       iquadtype = 1
 
-      call getnearquad_lap_bel2(npatches,norders,
+      call getnearquad_lap_bel3(npatches,norders,
      1      ixyzs,iptype,npts,srccoefs,srcvals,
      1      ipatch_id,uvs_targ,eps,iquadtype,nnz,row_ptr,col_ind,
      1      iquad,rfac0,nquad,wnear)
@@ -224,7 +224,7 @@ C$OMP END PARALLEL DO
       call prinf('entering layer potential eval*',i,0)
       call prinf('npts=*',npts,1)
 
-      call lpcomp_lap_bel_addsub2(npatches,norders,ixyzs,iptype,npts,
+      call lpcomp_lap_bel_addsub3(npatches,norders,ixyzs,iptype,npts,
      1  srccoefs,srcvals,eps,nnz,row_ptr,col_ind,iquad,nquad,wnear,
      2  rrhs,novers,npts_over,ixyzso,srcover,wover,pot)
 
@@ -241,7 +241,7 @@ C$OMP END PARALLEL DO
       enddo
       erra = sqrt(erra/ra)
       call prin2('error in application of layer potential=*',erra,1)
-
+      
 c      call prin2('pot=*',pot,24)
 c      call prin2('rrhs=*',rrhs,24)
      
@@ -251,7 +251,7 @@ c      call prin2('rrhs=*',rrhs,24)
 
       eps_gmres = 1.0d-14
       
-      call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
+      call lap_bel_solver3(npatches,norders,ixyzs,iptype,npts,srccoefs,
      1  srcvals,eps,numit,rrhs,eps_gmres,niter,errs,rres,sigma) 
 
       call prinf('niter=*',niter,1)
@@ -280,7 +280,23 @@ c      call prin2('rrhs=*',rrhs,24)
      1  iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
      2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(0*nquad+1),
      3  sigma,novers,npts_over,ixyzso,srcover,wover,u)
+
+      dpars(1) = 1.0d0/4/pi
+      dpars(2) = 0
  
+      do i=1,npts
+        sigma(i) = u(i)
+        u(i) = 0
+      enddo
+ 
+      call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
+     1  iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
+     2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(0*nquad+1),
+     3  sigma,novers,npts_over,ixyzso,srcover,wover,u)
+ 
+
+
+
       erra = 0
       ra = 0
       rr = -(1.0d0)/(nn*(nn+1.0d0))
@@ -334,13 +350,13 @@ c      call prin2('error in surface laplacian =*',erra,1)
 c      call prin2('error in surface area =*',rr,1) 
       
 200      eps_gmres = 1.0d-14
-      call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
+      call lap_bel_solver3(npatches,norders,ixyzs,iptype,npts,srccoefs,
      1  srcvals,eps,numit,rrhs2t,eps_gmres,niter,errs,rres,sigma) 
 
       call prinf('niter=*',niter,1)
       call prin2('errs=*',errs,niter)
 
-300      dpars(1) = 1.0d0/4/pi
+      dpars(1) = 1.0d0/4/pi
       dpars(2) = 0
  
 
@@ -348,7 +364,21 @@ c      call prin2('error in surface area =*',rr,1)
      1  iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
      2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(0*nquad+1),
      3  sigma,novers,npts_over,ixyzso,srcover,wover,u)
+
+      dpars(1) = 1.0d0/4/pi
+      dpars(2) = 0
  
+      do i=1,npts
+        sigma(i) = u(i)
+        u(i) = 0
+      enddo
+ 
+      call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
+     1  iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
+     2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(0*nquad+1),
+     3  sigma,novers,npts_over,ixyzso,srcover,wover,u)
+ 
+
 c    Subtract const from u to make integral zero
       Wu = 0 
       do i=1,npts
