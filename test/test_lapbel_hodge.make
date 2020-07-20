@@ -25,12 +25,12 @@ endif
 LIBS = -lfmm3dbie -lfmm3d  -lopenblas ${LDFLAGS}
 ifeq ($(HOST),gcc)
     FC=gfortran -L${LDF} 
-    FFLAGS=-fPIC -O3 -funroll-loops -march=native  
+    FFLAGS=-fPIC -O3 -funroll-loops -march=native -std=legacy 
 endif
 
 ifeq ($(HOST),gcc-openmp)
     FC = gfortran -L${LDF} 
-    FFLAGS=-fPIC -O3 -funroll-loops -march=native -fopenmp 
+    FFLAGS=-fPIC -O3 -funroll-loops -march=native -fopenmp -std=legacy
 endif
 
 ifeq ($(HOST),intel)
@@ -51,7 +51,7 @@ LBW=../src/lapbel_wrap
 OBJECTS =  test_lapbel_hodge.o \
     $(SURF)/vtk_routs.o \
     $(SURF)/surf_routs.o \
-    $(LBW)/lapbel.o \
+    $(LBW)/lapbel2.o \
     $(LBW)/lapbel_kernels.o \
 
 

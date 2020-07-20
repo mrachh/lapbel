@@ -103,7 +103,7 @@
       fname3='stell_hodge_cfree_20_8.vtk'
       fname4='stell_hodge_harm_20_8.vtk'
  
-      norder = 8 
+      norder = 5 
       npols = (norder+1)*(norder+2)/2
 
       npts = npatches*npols
@@ -113,6 +113,12 @@
       call setup_geom(igeomtype,norder,npatches,ipars, 
      1       srcvals,srccoefs,ifplot,fname)
 
+      do i=1,npts
+        srcvals(8,i) = -srcvals(8,i)
+        srcvals(9,i) = -srcvals(9,i)
+        srcvals(7,i) = -srcvals(7,i)
+
+      enddo
       allocate(norders(npatches),ixyzs(npatches+1),iptype(npatches))
 
       do i=1,npatches
@@ -148,7 +154,7 @@ c
         rrhs(i) = real(rhs(i))
       enddo
 
-      eps = 0.51d-8
+      eps = 0.51d-5
 
 
 c
