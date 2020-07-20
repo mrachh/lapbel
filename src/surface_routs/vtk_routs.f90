@@ -137,7 +137,7 @@ subroutine surf_vtk_plot_vec(npatches,norders,ixyzs,iptype, &
   enddo
   
   iunit1 = 877
-  open(unit = iunit1, file=trim(fname), status='replace')
+  open(unit = iunit1, file=trim(fname))
 
   write(iunit1,'(a)') "# vtk DataFile Version 3.0"
   write(iunit1,'(a)') trim(title)

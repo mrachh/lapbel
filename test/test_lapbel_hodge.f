@@ -113,12 +113,6 @@
       call setup_geom(igeomtype,norder,npatches,ipars, 
      1       srcvals,srccoefs,ifplot,fname)
 
-      do i=1,npts
-        srcvals(8,i) = -srcvals(8,i)
-        srcvals(9,i) = -srcvals(9,i)
-        srcvals(7,i) = -srcvals(7,i)
-
-      enddo
       allocate(norders(npatches),ixyzs(npatches+1),iptype(npatches))
 
       do i=1,npatches
@@ -706,8 +700,8 @@ C$OMP END PARALLEL DO
         pi = atan(done)*4
         umin = 0
         umax = 2*pi
-        vmin = 0
-        vmax = 2*pi
+        vmin = 2*pi
+        vmax = 0
         allocate(triaskel(3,3,npatches))
         nover = 0
         call xtri_rectmesh_ani(umin,umax,vmin,vmax,ipars(1),ipars(2),
