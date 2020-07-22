@@ -47,12 +47,6 @@
       print *, "nquad=",nquad
       print *, "npts*npts=",npts*npts
       print *, "error=",npts*npts-nquad
-      call prinf('npatches=*',npatches,1)
-      call prinf('norders=*',norders,20)
-      call prinf('ixyzs=*',ixyzs,20)
-      call prinf('npts=*',npts,1)
-      call prin2('eps=*',eps,1)
-      stop
 
       allocate(xmattmp(npts,npts))
       
@@ -77,7 +71,6 @@
       enddo
 
       print *, "done with first matrix"
-      stop
 
       fker => l3d_sgradu
       call dgetnearquad_ggq_guru(npatches,norders,ixyzs,

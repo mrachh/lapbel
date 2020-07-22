@@ -67,7 +67,7 @@
       call get_qwts(npatches,norders,ixyzs,iptype,npts,srcvals,wts)
 
 
-      allocate(rhs(pts),rrhs(npts),pot(npts))
+      allocate(rhs(npts),rrhs(npts),pot(npts))
 
 c
 c       define rhs to be one of the ynm's
