@@ -338,10 +338,10 @@ subroutine get_mean_curvature(npatches,norders,ixyzs,iptype, &
   call get_second_fundamental_form(npatches,norders,ixyzs,iptype, &
   npts,srccoefs,srcvals,sfform)
   
-  print *,"Point on surface:", srcvals(1,3),srcvals(2,3), srcvals(3,3) 
-  print *,"First fundamental form=", ffform(:,:, 3) 
-  print *,"Inverse first fundamental form=", ffforminv(:,:, 3)
-  print *,"Second fundamental form=", sfform(:,:, 3)
+!  print *,"Point on surface:", srcvals(1,3),srcvals(2,3), srcvals(3,3) 
+!  print *,"First fundamental form=", ffform(:,:, 3) 
+!  print *,"Inverse first fundamental form=", ffforminv(:,:, 3)
+!  print *,"Second fundamental form=", sfform(:,:, 3)
  
 
 
@@ -353,7 +353,7 @@ subroutine get_mean_curvature(npatches,norders,ixyzs,iptype, &
                      sfform(2,1,i)*ffforminv(1,2,i) + &
                      sfform(2,2,i)*ffforminv(2,2,i))
   enddo
-  print *,"Mean=", mean_curv(3)
+!  print *,"Mean=", mean_curv(3)
  
   return
 end subroutine get_mean_curvature

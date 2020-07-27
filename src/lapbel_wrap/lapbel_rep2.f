@@ -44,7 +44,7 @@ c
 
 
 
-      subroutine getnearquad_lap_bel(npatches,norders,
+      subroutine getnearquad_lap_bel_rep2(npatches,norders,
      1   ixyzs,iptype,npts,srccoefs,srcvals,
      2   ipatch_id,uvs_targ,eps,iquadtype,nnz,row_ptr,col_ind,
      3   iquad,rfac0,nquad,wnear)
@@ -258,7 +258,7 @@ c
 c
 c
 c
-      subroutine lpcomp_lap_bel(npatches,norders,ixyzs,
+      subroutine lpcomp_lap_bel_rep2(npatches,norders,ixyzs,
      1   iptype,npts,srccoefs,srcvals,eps,sigma,pot)
 c
 cf2py intent(in) npatches,norders,ixyzs,iptype,npts,srccoefs,srcvals
@@ -442,7 +442,7 @@ C$OMP END PARALLEL DO
 
       iquadtype = 1
 
-      call getnearquad_lap_bel(npatches,norders,
+      call getnearquad_lap_bel_rep2(npatches,norders,
      1      ixyzs,iptype,npts,srccoefs,srcvals,
      1      ipatch_id,uvs_targ,eps,iquadtype,nnz,row_ptr,col_ind,
      1      iquad,rfac0,nquad,wnear)
@@ -453,7 +453,7 @@ c
 c
 c   compute layer potential
 c
-      call lpcomp_lap_bel_addsub(npatches,norders,ixyzs,
+      call lpcomp_lap_bel_addsub_rep2(npatches,norders,ixyzs,
      1  iptype,npts,srccoefs,srcvals,
      2  eps,nnz,row_ptr,col_ind,iquad,nquad,wnear,
      3  sigma,novers,npts_over,ixyzso,srcover,wover,pot)
@@ -467,7 +467,7 @@ c
 c
 c
 c
-      subroutine lpcomp_lap_bel_addsub(npatches,norders,ixyzs,
+      subroutine lpcomp_lap_bel_addsub_rep2(npatches,norders,ixyzs,
      1   iptype,npts,srccoefs,srcvals,
      2   eps,nnz,row_ptr,col_ind,iquad,nquad,wnear,sigma,novers,
      3   nptso,ixyzso,srcover,whtsover,pot)
@@ -963,7 +963,7 @@ c
 c
 c
 c        
-      subroutine lap_bel_solver(npatches,norders,ixyzs,
+      subroutine lap_bel_solver_rep2(npatches,norders,ixyzs,
      1    iptype,npts,srccoefs,srcvals,eps,numit,
      2    rhs,eps_gmres,niter,errs,rres,soln)
 c
@@ -1216,7 +1216,7 @@ C$OMP END PARALLEL DO
       call cpu_time(t1)
 C$      t1 = omp_get_wtime()      
 
-      call getnearquad_lap_bel(npatches,norders,
+      call getnearquad_lap_bel_rep2(npatches,norders,
      1      ixyzs,iptype,npts,srccoefs,srcvals,
      1      ipatch_id,uvs_targ,eps,iquadtype,nnz,row_ptr,col_ind,
      1      iquad,rfac0,nquad,wnear)
@@ -1298,7 +1298,7 @@ c        evaluation routine
 c
 
 
-        call lpcomp_lap_bel_addsub(npatches,norders,ixyzs,
+        call lpcomp_lap_bel_addsub_rep2(npatches,norders,ixyzs,
      1    iptype,npts,srccoefs,srcvals,
      2    eps,nnz,row_ptr,col_ind,iquad,nquad,wnear,
      3    vmat(1,it),novers,npts_over,ixyzso,srcover,wover,wtmp)
@@ -1383,7 +1383,7 @@ c        evaluation routine
 c
 
 
-          call lpcomp_lap_bel_addsub(npatches,norders,ixyzs,
+          call lpcomp_lap_bel_addsub_rep2(npatches,norders,ixyzs,
      1      iptype,npts,srccoefs,srcvals,
      2      eps,nnz,row_ptr,col_ind,iquad,nquad,wnear,
      3      soln,novers,npts_over,ixyzso,srcover,wover,wtmp)

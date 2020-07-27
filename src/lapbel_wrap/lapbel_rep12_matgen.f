@@ -1,6 +1,7 @@
       subroutine get_lapbel_matrices(npatches,norders,ixyzs,
      1   iptype,npts,srccoefs,srcvals,ipatch_id,uvs_targ,eps,
-     2   smat,sgradumat,sgradvmat,dgradumat,dgradvmat)
+     2   smat,sgradumat,sgradvmat,dgradumat,dgradvmat,spmat,dmat,
+     3   diffmat)
       implicit real *8 (a-h,o-z)
       integer, intent(in) :: npatches,norders(npatches),npts
       integer, intent(in) :: ixyzs(npatches+1),iptype(npatches)
@@ -10,6 +11,8 @@
       real *8, intent(out) :: smat(npts,npts),sgradumat(npts,npts)
       real *8, intent(out) :: sgradvmat(npts,npts)
       real *8, intent(out) :: dgradumat(npts,npts),dgradvmat(npts,npts)
+      real *8, intent(out) :: spmat(npts,npts),dmat(npts,npts)
+      real *8, intent(out) :: diffmat(npts,npts)
       
       integer, allocatable :: row_ptr(:),col_ind(:),iquad(:)
       real *8, allocatable :: xmattmp(:,:)
@@ -22,6 +25,7 @@
       procedure (), pointer :: fker
 
       external l3d_slp,l3d_sgradu,l3d_sgradv,l3d_dgradu,l3d_dgradv
+      external l3d_dlp,l3d_sprime,l3d_spp_sum_dp
 
       done = 1
       pi = atan(done)*4
@@ -84,6 +88,7 @@
         enddo
       enddo
 
+      print *, "done with second matrix"
 
       fker => l3d_sgradv
       call dgetnearquad_ggq_guru(npatches,norders,ixyzs,
@@ -97,6 +102,7 @@
         enddo
       enddo
 
+      print *, "done with third matrix"
 
       fker => l3d_dgradu
       call dgetnearquad_ggq_guru(npatches,norders,ixyzs,
@@ -109,6 +115,7 @@
           dgradumat(j,i) = xmattmp(i,j)/4/pi
         enddo
       enddo
+      print *, "done with fourth matrix"
 
 
       fker => l3d_dgradv
@@ -123,6 +130,52 @@
         enddo
       enddo
 
+      print *, "done with fifth matrix"
+
+
+      fker => l3d_dlp
+      call dgetnearquad_ggq_guru(npatches,norders,ixyzs,
+     1     iptype,npts,srccoefs,srcvals,ndtarg,npts,srcvals,
+     1     ipatch_id,uvs_targ,
+     1     eps,ipv,fker,ndd,dpars,ndz,zpars,ndi,ipars,nnz,row_ptr,
+     1     col_ind,iquad,rfac0,nquad,xmattmp)
+      do i=1,npts
+        do j=1,npts
+          dmat(j,i) = xmattmp(i,j)/4/pi
+        enddo
+      enddo
+
+      print *, "done with sixth matrix"
+
+
+      fker => l3d_sprime
+      call dgetnearquad_ggq_guru(npatches,norders,ixyzs,
+     1     iptype,npts,srccoefs,srcvals,ndtarg,npts,srcvals,
+     1     ipatch_id,uvs_targ,
+     1     eps,ipv,fker,ndd,dpars,ndz,zpars,ndi,ipars,nnz,row_ptr,
+     1     col_ind,iquad,rfac0,nquad,xmattmp)
+      do i=1,npts
+        do j=1,npts
+          spmat(j,i) = xmattmp(i,j)/4/pi
+        enddo
+      enddo
+
+      print *, "done with seventh matrix"
+
+
+      fker => l3d_spp_sum_dp
+      call dgetnearquad_ggq_guru(npatches,norders,ixyzs,
+     1     iptype,npts,srccoefs,srcvals,ndtarg,npts,srcvals,
+     1     ipatch_id,uvs_targ,
+     1     eps,ipv,fker,ndd,dpars,ndz,zpars,ndi,ipars,nnz,row_ptr,
+     1     col_ind,iquad,rfac0,nquad,xmattmp)
+      do i=1,npts
+        do j=1,npts
+          diffmat(j,i) = xmattmp(i,j)/4/pi
+        enddo
+      enddo
+
+      print *, "done with eighth matrix"
 
       return
       end

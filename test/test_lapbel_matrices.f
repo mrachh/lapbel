@@ -7,13 +7,25 @@
       real *8 dpars(2)
       integer, allocatable :: norders(:),ixyzs(:),iptype(:)
       complex *16, allocatable :: rhs(:)
-      real *8, allocatable :: rrhs(:),pot(:)
+      real *8, allocatable :: rrhs(:),pot(:),potex(:)
+      real *8, allocatable :: sigma1(:),sigma2(:),sigma3(:)
+      real *8, allocatable :: errs1(:),errs2(:),errs3(:)
       
       real *8, allocatable :: smat(:,:),sgradumat(:,:),sgradvmat(:,:)
+      real *8, allocatable :: spmat(:,:),dmat(:,:),diffmat(:,:)
       real *8, allocatable :: dgradumat(:,:),dgradvmat(:,:)
       real *8, allocatable :: xmat_rep1(:,:),xmat_rep2(:,:)
+      real *8, allocatable :: xmat_rep3(:,:)
+      real *8, allocatable :: xmat1(:,:),xmat2(:,:),xmat3(:,:)
+      real *8, allocatable :: xmat4(:,:),xmat5(:,:),xmat6(:,:)
+      real *8, allocatable :: xmatu(:,:),xmatv(:,:)
+      real *8, allocatable :: ffforminv(:,:,:),gginv(:),gg(:)
+      real *8, allocatable :: coefs(:,:),coefs_pot(:,:)
+      real *8, allocatable :: dumat(:,:),dvmat(:,:),xutmp(:,:),
+     1   xvtmp(:,:),umat(:,:),uvs(:,:),meancrvs(:)
+      real *8, allocatable :: pols(:),ders(:,:)
       
-      real *8, allocatable :: w(:,:)
+      real *8, allocatable :: w(:,:),work(:)
 
 
 
@@ -22,6 +34,7 @@
       integer numit,niter
       character *100 title,dirname
       character *300 fname
+      real *8, allocatable :: s1(:),s2(:),s3(:)
 
 
       logical isout0,isout1
@@ -67,54 +80,373 @@
       call get_qwts(npatches,norders,ixyzs,iptype,npts,srcvals,wts)
 
 
-      allocate(rhs(npts),rrhs(npts),pot(npts))
+      allocate(rhs(npts),rrhs(npts),pot(npts),potex(npts))
 
 c
 c       define rhs to be one of the ynm's
 c
-      nn = 2
-      mm = 1
-      nmax = nn
-      allocate(w(0:nmax,0:nmax))
-      call l3getsph(nmax,mm,nn,12,srcvals,rhs,npts,w)
-      
-      do i=1,npts
-        rrhs(i) = real(rhs(i))
+      nmax = 2
+      allocate(coefs(0:nmax,0:nmax),coefs_pot(0:nmax,0:nmax))
+      coefs = 0
+      coefs_pot = 0
+
+      fname='rep-comp-res/boundary-data.dat'
+      open(unit=33,file=trim(fname))
+
+ 1121 format(2(2x,i3),2(2x,e22.16))
+      do i=0,nmax
+        do j=0,i
+          coefs(i,j) = hkrand(0)
+          if(i.eq.0.and.j.eq.0) coefs(i,j) = 0
+          coefs_pot(i,j) = -coefs(i,j)*i*(i+1.0d0)/(2*i+1.0d0)**2
+          write(33,1121) i,j,coefs(i,j),coefs_pot(i,j)
+        enddo
       enddo
 
+      close(33)
 
+      call prin2('coefs=*',coefs,(nmax+1)**2)
+      call prin2('coefs_pot=*',coefs_pot,(nmax+1)**2)
+
+      allocate(w(0:nmax,0:nmax))
+      call l3dget_multynm_rhs(nmax,coefs,12,srcvals,rrhs,npts,w)
+      call l3dget_multynm_rhs(nmax,coefs_pot,12,srcvals,potex,npts,w)
+      call prin2('rrhs=*',rrhs,12)
+      call prin2('potex=*',potex,12)
+      
+      write(fname,'(a,i3.3,a)') 'rep-comp-res/ressum-',npatches,
+     1  '.dat'
+      open(unit=34,file=trim(fname))
+
+      write(34,'(2x,i5)') npatches
+      write(34,'(2x,i5)') norder
+      write(34,'(2x,i5)') npts
+
+
+      
       allocate(smat(npts,npts),sgradumat(npts,npts))
       allocate(sgradvmat(npts,npts),dgradumat(npts,npts))
       allocate(dgradvmat(npts,npts),xmat_rep1(npts,npts))
-      allocate(xmat_rep2(npts,npts))
+      allocate(xmat_rep2(npts,npts),xmat_rep3(npts,npts))
+      allocate(xmat1(npts,npts),xmat2(npts,npts))
+      allocate(xmatu(npts,npts),xmatv(npts,npts))
 
-      eps = 0.51d-8
+      eps = 0.51d-9
 
       allocate(ipatch_id(npts),uvs_targ(2,npts))
       call get_patch_id_uvs(npatches,norders,ixyzs,iptype,npts,
      1  ipatch_id,uvs_targ)
 
+      allocate(spmat(npts,npts),dmat(npts,npts),diffmat(npts,npts))
+
       call get_lapbel_matrices(npatches,norders,ixyzs,iptype,npts,
      1  srccoefs,srcvals,ipatch_id,uvs_targ,eps,smat,sgradumat,
-     2  sgradvmat,dgradumat,dgradvmat)
+     2  sgradvmat,dgradumat,dgradvmat,spmat,dmat,diffmat)
 
-c
-c   test smat
-c
       alpha = 1.0d0
       beta = 0.0d0
-      call dgemv('n',npts,npts,alpha,smat,npts,rrhs,1,beta,pot,1)
+      allocate(pols(npols),uvs(2,npols),umat(npols,npols),
+     1   ders(2,npols),ffforminv(2,2,npts))
+      allocate(dumat(npols,npols),dvmat(npols,npols))
+      allocate(xutmp(npols,npols),xvtmp(npols,npols))
+      
+      call get_inv_first_fundamental_form(npatches,norders,ixyzs,
+     1  iptype,npts,srccoefs,srcvals,ffforminv)
+      call prinf('done computing ffforminv*',i,0)
+
+
+      allocate(gg(npts),gginv(npts))
+
+      do i=1,npts
+        gginv(i) = sqrt(ffforminv(1,1,i)*ffforminv(2,2,i)-
+     1    ffforminv(1,2,i)*ffforminv(2,1,i))
+        gg(i) = 1.0d0/gginv(i)
+      enddo
+
+      call prin2('gginv=*',gginv,12)
+
+
+      do j=1,npts
+        do i=1,npts
+          xmatu(i,j) = (sgradumat(i,j)*ffforminv(1,1,i)+
+     1      sgradvmat(i,j)*ffforminv(1,2,i))
+          xmatv(i,j) = (sgradumat(i,j)*ffforminv(2,1,i)+
+     1      sgradvmat(i,j)*ffforminv(2,2,i))
+          xmat1(i,j) = xmatu(i,j)*gg(i)
+          xmat2(i,j) = xmatv(i,j)*gg(i)
+        enddo
+      enddo
+      call prinf('done computing xmat1,xmat2*',i,0)
+
+c
+c     get xutmp and xvtmp
+c
+      call get_vioreanu_nodes(norder,npols,uvs)
+      call koorn_vals2coefs(norder,npols,uvs,umat)
+
+      do i=1,npols
+        call koorn_ders(uvs(1,i),norder,npols,pols,ders)
+        do j=1,npols
+          dumat(j,i) = ders(1,j)
+          dvmat(j,i) = ders(2,j)
+        enddo
+      enddo
+
+      call dgemm('t','n',npols,npols,npols,alpha,dumat,npols,umat,
+     1  npols,beta,xutmp,npols)
+      call dgemm('t','n',npols,npols,npols,alpha,dvmat,npols,umat,
+     1  npols,beta,xvtmp,npols)
+       call prinf('done computing xutmp,xvtmp*',i,0)
+      allocate(xmat3(npts,npts),xmat4(npts,npts),xmat5(npts,npts))
+      allocate(xmat6(npts,npts))
+
+      do j=1,npts
+        do i=1,npts
+          xmat3(i,j) = 0
+          xmat4(i,j) = 0
+        enddo
+      enddo
+
+      do i=1,npatches
+        istart = (i-1)*npols
+        do j=1,npols
+          do l=1,npols
+            xmat3(istart+l,istart+j) = xutmp(l,j)
+            xmat4(istart+l,istart+j) = xvtmp(l,j)
+          enddo
+        enddo
+      enddo
+      print *, "alpha=",alpha
+      print *, "beta=",beta
+      call dgemm('n','n',npts,npts,npts,alpha,xmat3,npts,xmat1,npts,
+     1  beta,xmat5,npts)
+      call dgemm('n','n',npts,npts,npts,alpha,xmat4,npts,xmat2,npts,
+     1  beta,xmat6,npts)
+
+      do j=1,npts
+        do i=1,npts
+          xmat1(i,j) = (xmat5(i,j)+xmat6(i,j))*gginv(i)
+        enddo
+      enddo
+      
+c
+c     now compute smat \cdot xmat1 
+c
+      call dgemm('n','n',npts,npts,npts,alpha,smat,npts,xmat1,npts,
+     1  beta,xmat_rep1,npts)
+
+c
+c
+c    add in contribution of smat*w*smat
+c 
+      do j=1,npts
+        do i=1,npts
+           xmat1(i,j) = wts(j)/4/pi
+        enddo
+      enddo
+
+      call dgemm('n','n',npts,npts,npts,alpha,xmat1,npts,smat,npts,
+     1  beta,xmat2,npts)
+
+      
+      call dgemm('n','n',npts,npts,npts,alpha,smat,npts,xmat2,npts,
+     1  beta,xmat5,npts)
+      
+      do j=1,npts
+        do i=1,npts
+          xmat_rep1(i,j) = xmat_rep1(i,j) + xmat5(i,j)
+        enddo
+      enddo
+      
+c
+c   test S(\Delta + W) S with representation 1
+c
+      call dgemv('n',npts,npts,alpha,xmat_rep1,npts,rrhs,1,beta,pot,1)
       
       erra = 0
       ra = 0
-      rr = 1.0d0/(2*nn+1.0d0)
       do i=1,npts
-        erra = erra + abs(rrhs(i)*rr-pot(i))**2*wts(i)
-        ra = ra + abs(rrhs(i))**2*wts(i)
+        erra = erra + abs(potex(i)-pot(i))**2*wts(i)
+        ra = ra + abs(potex(i))**2*wts(i)
       enddo
       erra = sqrt(erra/ra)
-      call prin2('errof in smat=*',erra,1)
+      err_app_rep1 = erra
+      call prin2('error in final operator apply for rep1=*',erra,1)
 
+       
+c
+c
+c        now start constructing matrix for representation 2
+c
+c
+      call dgemm('n','n',npts,npts,npts,alpha,dgradumat,npts,xmatu,npts,
+     1  beta,xmat_rep2,npts)
+      call dgemm('n','n',npts,npts,npts,alpha,dgradvmat,npts,xmatv,npts,
+     1  alpha,xmat_rep2,npts)
+      do j=1,npts
+        do i=1,npts 
+          xmat_rep2(i,j) = -xmat_rep2(i,j) + xmat5(i,j)
+        enddo
+      enddo
+      
+
+c
+c   test S(\Delta + W) S with representation 2
+c
+      call dgemv('n',npts,npts,alpha,xmat_rep2,npts,rrhs,1,beta,pot,1)
+      
+      erra = 0
+      ra = 0
+      do i=1,npts
+        erra = erra + abs(potex(i)-pot(i))**2*wts(i)
+        ra = ra + abs(potex(i))**2*wts(i)
+      enddo
+      erra = sqrt(erra/ra)
+      err_app_rep2 = erra
+      call prin2('error in final operator apply for rep2=*',erra,1)
+
+c
+c   start generating matrix for rep 3
+c
+      allocate(meancrvs(npts))
+      call get_mean_curvature(npatches,norders,ixyzs,iptype,npts,
+     1  srccoefs,srcvals,meancrvs)
+      do j=1,npts
+        do i=1,npts
+          xmat1(i,j) = spmat(i,j)*meancrvs(i)
+        enddo
+      enddo
+
+      call prinf('done getting mean curvature*',i,0)
+
+      call dgemm('n','n',npts,npts,npts,alpha,smat,npts,xmat1,npts,
+     1  beta,xmat_rep3,npts)
+      
+      rtmp = 2.0d0
+      call dgemm('n','n',npts,npts,npts,alpha,smat,npts,diffmat,npts,
+     1  rtmp,xmat_rep3,npts)
+      
+      rtmp = -1.0d0
+      call dgemm('n','n',npts,npts,npts,alpha,dmat,npts,dmat,npts,
+     1  rtmp,xmat_rep3,npts)
+      do i=1,npts
+        xmat_rep3(i,i) = -0.25d0 + xmat_rep3(i,i)
+      enddo
+
+      do j=1,npts
+        do i=1,npts
+          xmat_rep3(i,j) = xmat_rep3(i,j) + xmat5(i,j)
+        enddo
+      enddo
+        
+      
+      
+c
+c   test S(\Delta + W) S with representation 3
+c
+      call dgemv('n',npts,npts,alpha,xmat_rep3,npts,rrhs,1,beta,pot,1)
+      
+      erra = 0
+      ra = 0
+      do i=1,npts
+        erra = erra + abs(potex(i)-pot(i))**2*wts(i)
+        ra = ra + abs(potex(i))**2*wts(i)
+      enddo
+      erra = sqrt(erra/ra)
+      err_app_rep3 = erra
+      call prin2('error in final operator apply for rep3=*',erra,1)
+
+ 1131 format(3(2x,e11.5))
+ 1141 format(3(2x,i4))
+      write(34,*) " ==="
+      write(34,*) " Error in mat apply"
+      write(34,1131) err_app_rep1,err_app_rep2,err_app_rep3
+      write(34,*) "===="
+
+
+c
+c
+c   solve problem via gmres
+c
+      numit = 50
+      allocate(errs1(numit+1),errs2(numit+1),errs3(numit+1))
+      allocate(sigma1(npts),sigma2(npts),sigma3(npts))
+
+      niter1 = 0
+      niter2 = 0
+      niter3 = 0
+      call dgmres_slow(npts,xmat_rep1,potex,sigma1,numit,niter1,errs1)
+      call dgmres_slow(npts,xmat_rep2,potex,sigma2,numit,niter2,errs2)
+      call dgmres_slow(npts,xmat_rep3,potex,sigma3,numit,niter3,errs3)
+
+      call prinf('niter1=*',niter1,1)
+      call prin2('errs1=*',errs1,niter1)
+      call prinf('niter2=*',niter2,1)
+      call prin2('errs2=*',errs2,niter2)
+      call prinf('niter3=*',niter3,1)
+      call prin2('errs3=*',errs3,niter3)
+      
+
+      erra1 = 0
+      erra2 = 0
+      erra3 = 0
+      ra = 0
+
+      do i=1,npts
+        ra = ra + abs(rrhs(i))**2*wts(i)
+        erra1 = erra1 + abs(rrhs(i)-sigma1(i))**2*wts(i)
+        erra2 = erra2 + abs(rrhs(i)-sigma2(i))**2*wts(i)
+        erra3 = erra3 + abs(rrhs(i)-sigma3(i))**2*wts(i)
+      enddo
+      erra1 = sqrt(erra1/ra)
+      erra2 = sqrt(erra2/ra)
+      erra3 = sqrt(erra3/ra)
+      
+      call prin2('error in solve rep1=*',erra1,1)
+      call prin2('error in solve rep2=*',erra2,1)
+      call prin2('error in solve rep3=*',erra3,1)
+
+      write(34,*) "error in solve"
+      write(34,1131) erra1,erra2,erra3
+      write(34,*) "===="
+      write(34,*) "niter"
+      write(34,1141) niter1,niter2,niter3
+      write(34,*) "===="
+      write(34,*) "errors as a function of iteration number"
+      do i=1,niter1
+        write(34,'(2x,e11.5)') errs1(i)
+      enddo
+      do i=1,niter2
+        write(34,'(2x,e11.5)') errs2(i)
+      enddo
+      do i=1,niter3
+        write(34,'(2x,e11.5)') errs3(i)
+      enddo
+      write(34,*) '===='
+      write(34,*) 'Singular values'
+
+
+      
+
+
+c
+c    compute the spectra of these matrices
+c
+      allocate(s1(npts),s2(npts),s3(npts))
+      lw = 100*npts
+      allocate(work(lw))
+      call dsvd(npts,npts,xmat_rep1,xmat1,s1,xmat2)
+      call dgesvd('n','n',npts,npts,xmat_rep1,npts,s1,xmat1,npts,
+     1   xmat2,npts,work,lw,info)
+      call dgesvd('n','n',npts,npts,xmat_rep2,npts,s2,xmat1,npts,
+     1   xmat2,npts,work,lw,info)
+      call dgesvd('n','n',npts,npts,xmat_rep3,npts,s3,xmat1,npts,
+     1   xmat2,npts,work,lw,info)
+
+      do i=1,npts
+        write(34,1131) s1(i),s2(i),s3(i)
+      enddo
+      close(34)
 
 
       stop
@@ -325,6 +657,196 @@ c
        
       return
       end
+
+
+
+   
+
+
+
+      subroutine l3dget_multynm_rhs(nmax,coefs,ndx,xyzs,ynms,npts,w)
+      implicit real *8 (a-h,o-z)
+      real *8 :: xyzs(ndx,npts)
+      real *8 ynms(npts)
+      real *8 coefs(0:nmax,0:nmax)
+      real *8 rat1(10000),rat2(10000)
+      real *8 ynm(0:nmax,0:nmax)
+      data ima/(0.0d0,1.0d0)/
+  
+      call ylgndrini(nmax, rat1, rat2)
+
+  
+      do i=1,npts
+        x=xyzs(1,i)
+        y=xyzs(2,i)
+        z=xyzs(3,i)
+        r=sqrt(x**2+y**2+z**2)
+        call cart2polar(xyzs(1,i),r,theta,phi)
+        ctheta = cos(theta)
+        call ylgndrf(nmax, ctheta, ynm, rat1, rat2)
+        ynms(i) = 0
+        do j=0,nmax
+          do l=0,j
+            ynms(i) = ynms(i) + coefs(j,l)*ynm(j,l)*cos((l+0.0d0)*phi)
+          enddo
+        enddo
+      enddo
+       
+      return
+      end
+c
+c
+c
+c
+c
+      subroutine dgmres_slow(npts,xmat,rhs,soln,numit,niter,errs)
+      implicit real *8(a-h,o-z)
+      real *8 xmat(npts,npts),rhs(npts),soln(npts),errs(numit+1)
+
+      real *8, allocatable :: vmat(:,:),hmat(:,:)
+      real *8, allocatable :: cs(:),sn(:)
+      real *8, allocatable :: svec(:),yvec(:),wtmp(:)
+
+      allocate(vmat(npts,numit+1),hmat(numit,numit))
+      allocate(cs(numit),sn(numit))
+      allocate(wtmp(npts),svec(numit+1),yvec(numit+1))
+
+
+      niter=0
+      alpha = 1.0d0
+      beta = 0.0d0
+      eps_gmres = 1.0d-14
+
+c
+c      compute norm of right hand side and initialize v
+c 
+      rb = 0
+
+      do i=1,numit
+        cs(i) = 0
+        sn(i) = 0
+      enddo
+
+
+c
+      do i=1,npts
+        rb = rb + abs(rhs(i))**2
+      enddo
+      rb = sqrt(rb)
+
+      do i=1,npts
+        vmat(i,1) = rhs(i)/rb
+      enddo
+
+      svec(1) = rb
+
+
+      do it=1,numit
+        it1 = it + 1
+
+        call dgemv('n',npts,npts,alpha,xmat,npts,vmat(1,it),1,beta,
+     1      wtmp,1)
+
+        do k=1,it
+          hmat(k,it) = 0
+          do j=1,npts
+            hmat(k,it) = hmat(k,it) + wtmp(j)*vmat(j,k)
+          enddo
+
+          do j=1,npts
+            wtmp(j) = wtmp(j)-hmat(k,it)*vmat(j,k)
+          enddo
+        enddo
+          
+        wnrm2 = 0
+        do j=1,npts
+          wnrm2 = wnrm2 + abs(wtmp(j))**2
+        enddo
+        wnrm2 = sqrt(wnrm2)
+
+        do j=1,npts
+          vmat(j,it1) = wtmp(j)/wnrm2
+        enddo
+
+        do k=1,it-1
+          temp = cs(k)*hmat(k,it)+sn(k)*hmat(k+1,it)
+          hmat(k+1,it) = -sn(k)*hmat(k,it)+cs(k)*hmat(k+1,it)
+          hmat(k,it) = temp
+        enddo
+
+        dtmp = wnrm2
+
+        call rotmat_gmres(hmat(it,it),dtmp,cs(it),sn(it))
+          
+        hmat(it,it) = cs(it)*hmat(it,it)+sn(it)*wnrm2
+        svec(it1) = -sn(it)*svec(it)
+        svec(it) = cs(it)*svec(it)
+        rmyerr = abs(svec(it1))/rb
+        errs(it) = rmyerr
+        print *, "iter=",it,errs(it)
+
+        if(rmyerr.le.eps_gmres.or.it.eq.numit) then
+
+c
+c            solve the linear system corresponding to
+c            upper triangular part of hmat to obtain yvec
+c
+c            y = triu(H(1:it,1:it))\s(1:it);
+c
+          do j=1,it
+            iind = it-j+1
+            yvec(iind) = svec(iind)
+            do l=iind+1,it
+              yvec(iind) = yvec(iind) - hmat(iind,l)*yvec(l)
+            enddo
+            yvec(iind) = yvec(iind)/hmat(iind,iind)
+          enddo
+
+c
+c          estimate x
+c
+          do j=1,npts
+            soln(j) = 0
+            do i=1,it
+              soln(j) = soln(j) + yvec(i)*vmat(j,i)
+            enddo
+          enddo
+
+
+
+          rres = 0
+          do i=1,npts
+            wtmp(i) = 0
+          enddo
+c
+c        NOTE:
+c        replace this routine by appropriate layer potential
+c        evaluation routine  
+c
+
+
+          call dgemv('n',npts,npts,alpha,xmat,npts,soln,1,beta,
+     1      wtmp,1)
+
+          do i=1,npts
+            rres = rres + abs(wtmp(i)-rhs(i))**2
+          enddo
+          rres = sqrt(rres)/rb
+          niter = it
+          return
+        endif
+      enddo
+
+c
+
+
+      return
+      end
+      
+
+
+
+
 
 
 
