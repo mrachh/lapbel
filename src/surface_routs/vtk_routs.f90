@@ -73,7 +73,7 @@ subroutine surf_vtk_plot_vec(npatches,norders,ixyzs,iptype, &
 !   get uvs of all patches of type = 1
 !
   
-  nlmax = 2
+  nlmax = 4
   nuv = (4**(nlmax+1)-1)/3
   allocate(uvs(2,3,nuv))
 
