@@ -143,7 +143,7 @@ subroutine surf_vtk_plot_vec(npatches,norders,ixyzs,iptype, &
   write(iunit1,'(a)') trim(title)
   write(iunit1,'(a)') "ASCII"
   write(iunit1,'(a)') "DATASET UNSTRUCTURED_GRID"
-  write(iunit1,'(a,i8,a)') "POINTS ", npout, " float"
+  write(iunit1,'(a,i9,a)') "POINTS ", npout, " float"
 
   do i = 1,npout
     write(iunit1,"(E11.5,2(2x,e11.5))") xyzs(1,i), xyzs(2,i), xyzs(3,i)
@@ -156,7 +156,7 @@ subroutine surf_vtk_plot_vec(npatches,norders,ixyzs,iptype, &
     if(iptype(i).eq.1) ncsize = ncsize + 4*(4**kovers(i))
   enddo
 
-  write(iunit1,'(a,i8,i8)') "CELLS ", ncell, ncsize
+  write(iunit1,'(a,i9,i9)') "CELLS ", ncell, ncsize
 
   do ipatch=1,npatches
     nb = 4**kovers(ipatch)
@@ -164,12 +164,12 @@ subroutine surf_vtk_plot_vec(npatches,norders,ixyzs,iptype, &
       istart = ipstart(ipatch) 
       do i = 1,nb
         i1 = istart + 3*(i-1) 
-        write(iunit1,'(a,i8,i8,i8)') "3 ", i1-1, i1, i1+1
+        write(iunit1,'(a,i9,i9,i9)') "3 ", i1-1, i1, i1+1
       enddo
     endif
   end do
 
-  write(iunit1,'(a,i8)') "CELL_TYPES ", ncell
+  write(iunit1,'(a,i9)') "CELL_TYPES ", ncell
   do ipatch = 1,npatches
     nb = 4**kovers(ipatch)
     if(iptype(ipatch).eq.1) then
@@ -180,7 +180,7 @@ subroutine surf_vtk_plot_vec(npatches,norders,ixyzs,iptype, &
   end do
 
   write(iunit1,'(a)') ""
-  write(iunit1,'(a,i8)') "POINT_DATA ", npout
+  write(iunit1,'(a,i9)') "POINT_DATA ", npout
   write(iunit1,'(a,i4)') "SCALARS vec_comps float ", 3
   write(iunit1,'(a)') "LOOKUP_TABLE default"
   do i = 1,npout
