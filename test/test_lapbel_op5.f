@@ -70,13 +70,41 @@
       xyz_out(3) = 20.1d0
 
       igeomtype = 1
-      ipars(1) = 2
-      npatches=12*(4**ipars(1))
+      
+
+      if(igeomtype.eq.1) then
+        ipars(1) = 2
+        npatches=12*(4**ipars(1))
+        fname='sphere.vtk'
+      endif
+
+      if(igeomtype.eq.2) then
+        ipars(1) = 5
+        ipars(2) = ipars(1)*3
+        npatches = 2*ipars(1)*ipars(2)
+        fname='stell.vtk'
+      endif
+
+      if(igeomtype.eq.3) then
+        ipars(1) = 40
+        ipars(2) = 20
+        npatches = 2*ipars(1)*ipars(2)
+        fname='wtorus.vtk'
+      endif
+
+      if(igeomtype.eq.4) then
+        ipars(1) = 40
+        ipars(2) = 20
+        npatches = 2*ipars(1)*ipars(2)
+        fname = 'torus.vtk'
+      endif
+
+      
       norder = 8
-      fname = 'op5_sph28'
-      fname1 = 'op5_sph28_psi.vtk'
-      fname2 = 'op5_sph28_f.vtk'
-      fname3 = 'op5_sph28_psiapp.vtk' 
+      
+      fname1 = 'op5_sph_2_8_psi.vtk'
+      fname2 = 'op5_sph_2_8_f.vtk'
+      fname3 = 'op5_sph_2_8_psiapp.vtk' 
       npols = (norder+1)*(norder+2)/2
 
       npts = npatches*npols
@@ -431,7 +459,7 @@ c    Subtract const from u to make integral zero
       procedure (), pointer :: xtri_geometry
 
 
-      external xtri_stell_eval,xtri_sphere_eval
+      external xtri_stell_eval,xtri_sphere_eval,xtri_wtorus_eval
       
       npols = (norder+1)*(norder+2)/2
       allocate(uvs(2,npols),umatr(npols,npols),vmatr(npols,npols))
@@ -470,8 +498,8 @@ c    Subtract const from u to make integral zero
         pi = atan(done)*4
         umin = 0
         umax = 2*pi
-        vmin = 0
-        vmax = 2*pi
+        vmin = 2*pi
+        vmax = 0
         allocate(triaskel(3,3,npatches))
         nover = 0
         call xtri_rectmesh_ani(umin,umax,vmin,vmax,ipars(1),ipars(2),
@@ -509,6 +537,92 @@ c    Subtract const from u to make integral zero
         endif
 
         call getgeominfo(npatches,xtri_geometry,ptr1,ptr2,iptr3,iptr4,
+     1     npols,uvs,umatr,srcvals,srccoefs)
+      endif
+
+      if(igeomtype.eq.3) then
+        done = 1
+        pi = atan(done)*4
+        umin = 0
+        umax = 2*pi
+        vmin = 0
+        vmax = 2*pi
+        allocate(triaskel(3,3,npatches))
+        nover = 0
+        call xtri_rectmesh_ani(umin,umax,vmin,vmax,ipars(1),ipars(2),
+     1     nover,npatches,npatches,triaskel)
+        call prinf('npatches=*',npatches,1)
+         
+        p1(1) = 1
+        p1(2) = 2
+        p1(3) = 0.25d0
+
+        p2(1) = 1.2d0
+        p2(2) = 1.0d0
+        p2(3) = 1.7d0
+
+c
+c         numberof oscillations
+c
+        p4(1) = 5.0d0
+
+
+        ptr1 => triaskel(1,1,1)
+        ptr2 => p1(1)
+        ptr3 => p2(1)
+        ptr4 => p4(1)
+        xtri_geometry => xtri_wtorus_eval
+        if(ifplot.eq.1) then
+           call xtri_vtk_surf(fname,npatches,xtri_geometry, ptr1,ptr2, 
+     1         ptr3,ptr4, norder,
+     2         'Triangulated surface of the wtorus')
+        endif
+
+
+        call getgeominfo(npatches,xtri_geometry,ptr1,ptr2,ptr3,ptr4,
+     1     npols,uvs,umatr,srcvals,srccoefs)
+      endif
+      
+      if(igeomtype.eq.4) then
+        done = 1
+        pi = atan(done)*4
+        umin = 0
+        umax = 2*pi
+        vmin = 0
+        vmax = 2*pi
+        allocate(triaskel(3,3,npatches))
+        nover = 0
+        call xtri_rectmesh_ani(umin,umax,vmin,vmax,ipars(1),ipars(2),
+     1     nover,npatches,npatches,triaskel)
+        call prinf('npatches=*',npatches,1)
+         
+        p1(1) = 0.75d0
+        p1(2) = 2
+        p1(3) = 0.25d0
+
+        p2(1) = 1.0d0
+        p2(2) = 1.0d0
+        p2(3) = 1.0d0
+
+c
+c         number of oscillations
+c
+        p4(1) = 0.0d0
+
+
+        ptr1 => triaskel(1,1,1)
+        ptr2 => p1(1)
+        ptr3 => p2(1)
+        ptr4 => p4(1)
+        xtri_geometry => xtri_wtorus_eval
+        if(ifplot.eq.1) then
+           call xtri_vtk_surf(fname,npatches,xtri_geometry, ptr1,ptr2, 
+     1         ptr3,ptr4, norder,
+     2         'Triangulated surface of the torus')
+        endif
+
+
+        call getgeominfo(npatches,xtri_geometry,ptr1,ptr2,ptr3,ptr4,
      1     npols,uvs,umatr,srcvals,srccoefs)
       endif
       

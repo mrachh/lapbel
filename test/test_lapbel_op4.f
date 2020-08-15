@@ -1,4 +1,6 @@
+      use omp_lib
       implicit real *8 (a-h,o-z) 
+ 
       real *8, allocatable :: srcvals(:,:),srccoefs(:,:)
       real *8, allocatable :: wts(:),rsigma(:)
       integer ipars(2)
@@ -33,10 +35,11 @@
       integer, allocatable :: row_ptr(:),col_ind(:),iquad(:)
 
 
-
-      real *8 thet,phi,eps_gmres,Wg,Wu
+      real *8, allocatable :: a(:)
+ 
+      real *8 thet,phi,eps_gmres,Wg,Wu,area,start,finish
       complex * 16 zpars(3)
-      integer numit,niter
+      integer numit,niter,tid
       character *100 title,dirname
       character *300 fname,fname1,fname2,fname3
 
@@ -48,8 +51,9 @@
 
       data ima/(0.0d0,1.0d0)/
 
-
+ 
       call prini(6,13)
+c      call omp_set_num_threads( 4 )
 
       done = 1
       pi = atan(done)*4
@@ -80,7 +84,7 @@
       endif
 
       if(igeomtype.eq.2) then
-        ipars(1) = 15
+        ipars(1) = 5
         ipars(2) = ipars(1)*3
         npatches = 2*ipars(1)*ipars(2)
         fname='stell.vtk'
@@ -94,18 +98,33 @@
       endif
 
       if(igeomtype.eq.4) then
-        ipars(1) = 40
-        ipars(2) = 20
+        ipars(1) = 20
+        ipars(2) = 10
         npatches = 2*ipars(1)*ipars(2)
         fname = 'torus.vtk'
       endif
 
+c      allocate(a(900000000))
+c      start = omp_get_wtime()
+cC$OMP  PARALLEL DO PRIVATE(i,j)     
+c      do i=1,30000 
+c        do j=1,30000
+c          a(30000*(i-1)+j) = 1.0d0
+c        enddo  
+c      enddo
+cC$OMP END  PARALLEL DO      
+c      finish = omp_get_wtime()
+c
+c      write ( *, * ) 'Elapsed time = ', finish-start
+c      stop
 
-      norder = 2
-      fname = 'op3_tor40_20_2'
-      fname1 = 'op3_tor40_20_2_psi.vtk'
-      fname2 = 'op3_tor40_20_2_f.vtk'
-      fname3 = 'op3_tor40_20_2_psiapp.vtk' 
+
+      start = omp_get_wtime()
+      norder = 4
+      fname = 'op4_tor_20_10_4'
+      fname1 = 'op4_tor_20_10_4_psi.vtk'
+      fname2 = 'op4_tor_20_10_4_f.vtk'
+      fname3 = 'op4_tor_20_10_4_psiapp.vtk' 
       npols = (norder+1)*(norder+2)/2
 
       npts = npatches*npols
@@ -170,6 +189,13 @@ C$OMP PARALLEL DO DEFAULT(SHARED)
       enddo
 C$OMP END PARALLEL DO     
 
+
+C$OMP PARALLEL  PRIVATE(tid) 
+      tid = omp_get_thread_num()
+      print *, "hello from thread", tid
+C$OMP END PARALLEL     
+
+
       ntarg = npts
       allocate(targs(3,npts))
 C$OMP PARALLEL DO DEFAULT(SHARED)      
@@ -179,6 +205,7 @@ C$OMP PARALLEL DO DEFAULT(SHARED)
         targs(3,i) = srcvals(3,i)
       enddo
 C$OMP END PARALLEL DO      
+
 
 c
 c    find near quadrature correction interactions
@@ -278,7 +305,7 @@ c      call prin2('rrhs=*',rrhs,24)
       numit = 50
       allocate(errs(numit+1))
 
-      eps_gmres = 1.0d-16
+      eps_gmres = 1.0d-14
       
        
 100      allocate(slmat(npts,npts))
@@ -289,6 +316,7 @@ c      call prin2('slmat=*',slmat,24)
 
      
       Wg = 0 
+      area = 0
       do i=1,npts
         rrhs1(i) = srcvals(3,i) 
         rrhs2t(i) =-srcvals(3,i)*(sqrt(srcvals(1,i)**2+srcvals(2,i)**2))
@@ -298,10 +326,24 @@ c      call prin2('slmat=*',slmat,24)
      1            rrhs2t(i)    
         u(i) = 0
         sigma(i) = 0
+        Wg = Wg + rrhs2t(i)*wts(i)
+        area = area + 1.0d0*wts(i) 
+      enddo
+ 
+      call prin2('integral of rhs =*',Wg,1)
+c    Subtract Wg/area to make integral zero
+      do i=1,npts
+        rrhs2t(i) = rrhs2t(i) - Wg/area 
+      enddo
+      Wg = 0 
+      do i=1,npts
         Wg = Wg + rrhs2t(i)*wts(i) 
       enddo
 
-      call prin2('mean of rrhs2t =*',Wg,1)
+
+      call prin2('new integral of rhs =*',Wg,1)
+    
+
       call surf_vtk_plot_scalar(npatches,norders,ixyzs,iptype,
      1   npts,srccoefs,srcvals,rrhs1,fname1,'psi')
 
@@ -343,7 +385,7 @@ c      call prin2('slmat=*',slmat,24)
       call prin2('error in surface area =*',rr,1) 
 
       
-200      eps_gmres = 1.0d-16
+200      eps_gmres = 1.0d-14
       call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
      1  srcvals,eps,numit,rrhs2t,eps_gmres,niter,errs,rres,sigma) 
 
@@ -384,7 +426,8 @@ c    Subtract const from u to make integral zero
       enddo
       erra = sqrt(erra/ra)
       call prin2('error in lapbel solution =*',erra,1)
-
+      finish = omp_get_wtime()
+      call prin2('time for execution=*',finish-start, 1)
 
       stop
       end
@@ -450,8 +493,8 @@ c    Subtract const from u to make integral zero
         pi = atan(done)*4
         umin = 0
         umax = 2*pi
-        vmin = 0
-        vmax = 2*pi
+        vmin = 2*pi
+        vmax = 0
         allocate(triaskel(3,3,npatches))
         nover = 0
         call xtri_rectmesh_ani(umin,umax,vmin,vmax,ipars(1),ipars(2),

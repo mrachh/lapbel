@@ -1,9 +1,9 @@
       implicit real *8 (a-h,o-z) 
       real *8, allocatable :: srcvals(:,:),srccoefs(:,:)
-      real *8, allocatable :: wts(:),rsigma(:),nF(:,:)
+      real *8, allocatable :: wts(:),rsigma(:)
       integer ipars(2)
       integer, allocatable :: ipatch_id(:)
-      real *8, allocatable :: uvs_targ(:,:),V(:,:),beta(:),alpha(:)
+      real *8, allocatable :: uvs_targ(:,:)
       real *8 dpars(2)
 
       integer, allocatable :: norders(:),ixyzs(:),iptype(:)
@@ -16,14 +16,14 @@
       real *8, allocatable :: sigma(:), pot(:),pot1(:),rrhs(:)
       real *8, allocatable :: errs(:),rrhs2(:),u(:),rrhs2t(:)
 
-      real *8, allocatable :: wnear(:),rrhs1(:),nFt(:,:)
-      real *8, allocatable :: targs(:,:),F(:,:),Ft(:,:)
+      real *8, allocatable :: wnear(:),rrhs1(:)
+      real *8, allocatable :: targs(:,:)
       real *8, allocatable :: cms(:,:),rads(:),rad_near(:)
-      real *8, allocatable :: srcover(:,:),wover(:),H(:,:)
+      real *8, allocatable :: srcover(:,:),wover(:)
       real *8, allocatable :: xmat(:,:),xtmp(:,:),slmat(:,:)
-      real *8, allocatable :: slapmat(:,:), s0mat(:,:),nsgbeta(:,:)
+      real *8, allocatable :: slapmat(:,:), s0mat(:,:)
 
-      real *8, allocatable :: rfds(:),sgalpha(:,:),sgbeta(:,:),gu(:,:)
+      real *8, allocatable :: rfds(:)
       integer, allocatable :: ifds(:)
       complex *16, allocatable :: zfds(:)
 
@@ -34,11 +34,11 @@
 
 
 
-      real *8 thet,phi,eps_gmres,Wg,Wu
+      real *8 thet,phi,eps_gmres,Wg,Wu,area
       complex * 16 zpars(3)
       integer numit,niter
       character *100 title,dirname
-      character *300 fname,fname1,fname2,fname3,fname4
+      character *300 fname,fname1,fname2,fname3
 
       real *8, allocatable :: w(:,:)
 
@@ -70,15 +70,16 @@
       xyz_out(3) = 20.1d0
 
       igeomtype = 2
+      
 
       if(igeomtype.eq.1) then
-        ipars(1) = 3
+        ipars(1) = 2
         npatches=12*(4**ipars(1))
         fname='sphere.vtk'
       endif
 
       if(igeomtype.eq.2) then
-        ipars(1) = 40
+        ipars(1) = 20
         ipars(2) = ipars(1)*3
         npatches = 2*ipars(1)*ipars(2)
         fname='stell.vtk'
@@ -97,13 +98,13 @@
         npatches = 2*ipars(1)*ipars(2)
         fname = 'torus.vtk'
       endif
+
       
-      fname1='stell_hodge_tanproj_40_8.vtk'
-      fname2='stell_hodge_dfree_40_8.vtk'
-      fname3='stell_hodge_cfree_40_8.vtk'
-      fname4='stell_hodge_harm_40_8.vtk'
- 
-      norder = 8 
+      norder = 4
+      
+      fname1 = 'op6_stell_20_4_psi.vtk'
+      fname2 = 'op6_stell_20_4_f.vtk'
+      fname3 = 'op6_stell_20_4_psiapp.vtk' 
       npols = (norder+1)*(norder+2)/2
 
       npts = npatches*npols
@@ -124,21 +125,17 @@
       print *, 'npts=',npts
 
       ixyzs(npatches+1) = 1+npols*npatches
-      allocate(wts(npts),rrhs2t(npts),H(3,npts))
+      allocate(wts(npts),rrhs2t(npts))
       call get_qwts(npatches,norders,ixyzs,iptype,npts,srcvals,wts)
 
 
       allocate(sigma(npts),rhs(npts),pot(npts),rrhs(npts))
       allocate(ffform(2,2,npts),rrhs2(npts),u(npts))
-      allocate(rrhs1(npts),Ft(3,npts),nFt(3,npts))
-      allocate(V(3,npts),F(3,npts),nF(3,npts))
-      allocate(alpha(npts),beta(npts),nsgbeta(3,npts))
-      allocate(sgalpha(3,npts),sgbeta(3,npts))
-      allocate(gu(3,npts))
+      allocate(rrhs1(npts))
 c
 c       define rhs to be one of the ynm's
 c
-      nn = 2
+      nn = 4
       mm = 1
       nmax = nn
       allocate(w(0:nmax,0:nmax))
@@ -148,7 +145,7 @@ c
         rrhs(i) = real(rhs(i))
       enddo
 
-      eps = 0.51d-7
+      eps = 0.51d-8
 
 
 c
@@ -243,276 +240,83 @@ C$OMP END PARALLEL DO
       call prinf('npts_over=*',npts_over,1)
       call prin2('eps=*',eps,1)
 
-      
-
       iquadtype = 1
 
-      call getnearquad_lap_bel2(npatches,norders,
+      call getnearquad_lap_bel3(npatches,norders,
      1      ixyzs,iptype,npts,srccoefs,srcvals,
      1      ipatch_id,uvs_targ,eps,iquadtype,nnz,row_ptr,col_ind,
      1      iquad,rfac0,nquad,wnear)
       call prinf('finished generating near quadrature correction*',i,0)
 
-
-      
-c     Evaluate DL on surface to check geometry info
-      dpars(2) = 1.0d0/4/pi
-      dpars(1) = 0
- 
-C$OMP PARALLEL DO DEFAULT(SHARED)      
-      do i=1,npts 
-        sigma(i) = 1
-      enddo
-C$OMP END PARALLEL DO      
-
-
-      call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
-     1  iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
-     2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(1*nquad+1),
-     3  sigma,novers,npts_over,ixyzso,srcover,wover,beta)
- 
-      erra = 0
-      ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      do i=1,npts
-        erra=  erra + ((beta(i)+0.5)**2)*wts(i)
-        ra= ra + (0.5)**2*wts(i)
-      enddo
-      erra = sqrt(erra/ra)
-      call prin2('error in DL =*',erra,1)
-
-      
-
-
-
-c      call prin2('pot=*',pot,24)
-c      call prin2('rrhs=*',rrhs,24)
      
       call prin2('starting iterative solve*',i,0)
       numit = 50
       allocate(errs(numit+1))
-     
-      Wg = 0 
-      do i=1,npts
-        V(1,i) = 1.0d0
-        V(2,i) = 0.0d0
-        V(3,i) = 0.0d0
-        Ft(1,i)=1.0d0-srcvals(1,i)**2
-        Ft(2,i)=-1.0d0*srcvals(1,i)*srcvals(2,i)
-        Ft(3,i)=-1.0d0*srcvals(1,i)*srcvals(3,i) 
-        nFt(1,i)=0
-        nFt(2,i)=srcvals(3,i)
-        nFt(3,i)=-1.0d0*srcvals(2,i)
-
-        rrhs2t(i) = -2.0d0*srcvals(1,i)
-        V(1,i) = sin(srcvals(1,i))**2
-        V(2,i) = sin(srcvals(1,i)**2)
-        V(3,i) = sin(srcvals(3,i))
-        Ft(1,i)=-srcvals(1,i)*srcvals(3,i)**2
-        Ft(2,i)=-srcvals(2,i)*srcvals(3,i)**2
-        Ft(3,i)=srcvals(3,i)-srcvals(3,i)**3 
-        nFt(1,i)=srcvals(2,i)*srcvals(3,i)
-        nFt(2,i)=-srcvals(1,i)*srcvals(3,i)
-        nFt(3,i)=0.0d0
-        rrhs2t(i)=1.0d0-3*srcvals(3,i)**2    
-
-        u(i) = srcvals(1,i)**2+srcvals(2,i)**2
-        gu(1,i)=2.0d0*srcvals(1,i)*(srcvals(3,i)**2)
-        gu(2,i)=2.0d0*srcvals(2,i)*(srcvals(3,i)**2)
-        gu(3,i)=2.0d0*srcvals(3,i)*(srcvals(3,i)**2-1.0d0)
-        sigma(i) = 0 
-        alpha(i) = 0
-        beta(i) = 0
-      enddo
- 
-      call biot_savart(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,V)
-
-
-      
-      title = 'u(x)'
-      call surf_vtk_plot_scalar(npatches,norders,ixyzs,iptype,
-     1   npts,srccoefs,srcvals,u,fname,title)
-
-      do i=1,npts
-        Wg = Wg + (1.0d0)**2*wts(i) 
-      enddo
-      Wg = (Wg )
-      call prin2('area of surface=*',Wg,1)
-
- 
-
-      call surf_grad(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,u,sgalpha)
-
-      erra = 0
-      ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      do i=1,npts
-        erra=erra+((sgalpha(1,i))**2)*wts(i)
-        erra=erra+((sgalpha(2,i))**2)*wts(i)
-        erra=erra+((sgalpha(3,i))**2)*wts(i) 
-        ra=ra+((gu(1,i))**2)*wts(i)
-        ra=ra+((gu(2,i))**2)*wts(i)
-        ra=ra+((gu(3,i))**2)*wts(i) 
-
-
-      enddo
-      erra = sqrt(erra)
-      call prin2('norm of surface grad=*',erra,1)
-
-
-      erra = 0
-      ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      do i=1,npts
-        erra=erra+((sgalpha(1,i)-gu(1,i))**2)*wts(i)
-        erra=erra+((sgalpha(2,i)-gu(2,i))**2)*wts(i)
-        erra=erra+((sgalpha(3,i)-gu(3,i))**2)*wts(i) 
-        ra=ra+((gu(1,i))**2)*wts(i)
-        ra=ra+((gu(2,i))**2)*wts(i)
-        ra=ra+((gu(3,i))**2)*wts(i) 
-
-
-      enddo
-      erra = sqrt(erra/ra)
-      call prin2('error in surface grad=*',erra,1)
-
-      
-   
-
-      call tangential_projection(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,V,F)
-
-      erra = 0
-      ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      do i=1,npts
-        erra=  erra + ((F(1,i)-Ft(1,i))**2)*wts(i)
-        erra=  erra + ((F(2,i)-Ft(2,i))**2)*wts(i)
-        erra=  erra + ((F(3,i)-Ft(3,i))**2)*wts(i) 
-        ra = ra + (Ft(1,i))**2*wts(i)
-        ra = ra + (Ft(2,i))**2*wts(i)
-        ra = ra + (Ft(3,i))**2*wts(i)
- 
-      enddo
-      erra = sqrt(erra/ra)
-      call prin2('error in tangential proj=*',erra,1)
-
-      call surf_vtk_plot_vec(npatches,norders,ixyzs,iptype,
-     1  npts,srccoefs,srcvals,F,fname1,'F') 
-
-    
-
-      call ncross(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,F,nF)
-
-      erra = 0
-      ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      do i=1,npts
-        erra=  erra + ((nF(1,i)-nFt(1,i))**2)*wts(i)
-        erra=  erra + ((nF(2,i)-nFt(2,i))**2)*wts(i)
-        erra=  erra + ((nF(3,i)-nFt(3,i))**2)*wts(i) 
-        ra = ra + (nFt(1,i))**2*wts(i)
-        ra = ra + (nFt(2,i))**2*wts(i)
-        ra = ra + (nFt(3,i))**2*wts(i)
- 
-      enddo
-      erra = sqrt(erra/ra)
-      call prin2('error in nxF =*',erra,1)
-
-      
-
-
-      call surf_div(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,F,rrhs1)
-
-      erra = 0
-      ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      do i=1,npts
-        erra=  erra + ((rrhs1(i)-rrhs2t(i))**2)*wts(i)
-        ra = ra + (rrhs2t(i))**2*wts(i)
-      enddo
-      erra = sqrt(erra/ra)
-      call prin2('error in rrhs1 =*',erra,1)
-
-      
-
-      call surf_div(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,nF,rrhs2)
-
-       do i=1,npts
-         rrhs2(i) = -1.0d0*rrhs2(i) 
-      enddo
-
-      erra = 0
-      ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      do i=1,npts
-        erra=  erra + ((rrhs2(i))**2)*wts(i)
-      enddo
-      call prin2('error in rrhs2 =*',erra,1)
-
-
-
- 
-c    Surface integral should be zero
-      Wu = 0 
-      do i=1,npts
-        Wu = Wu + rrhs1(i)*wts(i) 
-      enddo
-      call prin2('surface integral of rrhs1=*',Wu,1)
-
-
- 
-c    Surface integral should be zero
-      Wu = 0 
-      do i=1,npts
-        Wu = Wu + rrhs2(i)*wts(i) 
-      enddo
-      call prin2('surface integral of rrhs2=*',Wu,1)
-
-       
-
-200      eps_gmres = 1.0d-14
-      call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
-     1  srcvals,eps,numit,rrhs1,eps_gmres,niter,errs,rres,sigma) 
-
-      call prinf('niter=*',niter,1)
-      call prin2('errs=*',errs,niter)
-
-300      dpars(1) = 1.0d0/4/pi
-      dpars(2) = 0
- 
-
-      call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
-     1  iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
-     2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(0*nquad+1),
-     3  sigma,novers,npts_over,ixyzso,srcover,wover,alpha)
- 
-c    Surface integral should be zero
-      Wu = 0 
-      do i=1,npts
-        Wu = Wu + alpha(i)*wts(i) 
-      enddo
-      call prin2('surface integral of alpha=*',Wu,1)
-
-      erra = 0
-      ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      do i=1,npts
-        erra=erra+((alpha(i))**2)*wts(i)
-      enddo
-      erra = sqrt(erra)
-      call prin2('norm of surface alpha=*',erra,1)
-
-
 
       eps_gmres = 1.0d-14
-      call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
-     1  srcvals,eps,numit,rrhs2,eps_gmres,niter,errs,rres,sigma) 
+       
+c100      allocate(slmat(npts,npts))
+
+c      call form_surf_lap_mat(npatches,norders,ixyzs,iptype,npts,
+c     1   srccoefs,srcvals,slmat)
+c      call prin2('slmat=*',slmat,24)
+
+      area = 0
+      Wg = 0 
+      do i=1,npts
+        rrhs1(i) = srcvals(3,i) 
+        rrhs2t(i) =-srcvals(3,i)*(sqrt(srcvals(1,i)**2+srcvals(2,i)**2))
+        rrhs2t(i)=rrhs2t(i)+srcvals(3,i)*(2.25-sqrt(srcvals(1,i)**2+
+     1                 srcvals(2,i)**2))
+        rrhs2t(i)=1.0d0/(0.75**2*sqrt(srcvals(1,i)**2+srcvals(2,i)**2))*
+     1            rrhs2t(i)    
+        u(i) = 0
+        sigma(i) = 0
+        Wg = Wg + rrhs2t(i)*wts(i)
+        area = area + 1.0d0*wts(i) 
+      enddo
+
+
+      call prin2('integral of rhs =*',Wg,1)
+c    Subtract Wg/area to make integral zero
+      do i=1,npts
+        rrhs2t(i) = rrhs2t(i) - Wg/area 
+      enddo
+      Wg = 0 
+      do i=1,npts
+        Wg = Wg + rrhs2t(i)*wts(i) 
+      enddo
+
+
+      call prin2('new integral of rhs =*',Wg,1)
+
+      call surf_vtk_plot_scalar(npatches,norders,ixyzs,iptype,
+     1   npts,srccoefs,srcvals,rrhs1,fname1,'psi')
+
+      call surf_vtk_plot_scalar(npatches,norders,ixyzs,iptype,
+     1   npts,srccoefs,srcvals,rrhs2t,fname2,'f')
+
+
+
+c      call dmatvec(npts,npts,slmat,rrhs1,rrhs2)
+
+
+c      erra = 0
+c      ra = 0
+c      rr = 0
+c      do i=1,npts
+c        erra=  erra + (rrhs2(i)-rrhs2t(i))**2*wts(i)
+c        ra = ra + (rrhs2t(i))**2*wts(i)
+c        rr = rr + (1.0d0)*wts(i)
+c      enddo
+c      rr = (rr - 4*pi)/(4*pi)
+c      erra = sqrt(erra/ra)
+c      call prin2('error in surface laplacian =*',erra,1)
+c      call prin2('error in surface area =*',rr,1) 
+      
+200      eps_gmres = 1.0d-14
+      call lap_bel_solver3(npatches,norders,ixyzs,iptype,npts,srccoefs,
+     1  srcvals,eps,numit,rrhs2t,eps_gmres,niter,errs,rres,sigma) 
 
       call prinf('niter=*',niter,1)
       call prin2('errs=*',errs,niter)
@@ -524,120 +328,51 @@ c    Surface integral should be zero
       call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
      1  iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
      2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(0*nquad+1),
-     3  sigma,novers,npts_over,ixyzso,srcover,wover,beta)
+     3  sigma,novers,npts_over,ixyzso,srcover,wover,u)
+
+      dpars(1) = 1.0d0/4/pi
+      dpars(2) = 0
  
-c    Surface integral should be zero
+      do i=1,npts
+        sigma(i) = u(i)
+        u(i) = 0
+      enddo
+ 
+      call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
+     1  iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
+     2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(0*nquad+1),
+     3  sigma,novers,npts_over,ixyzso,srcover,wover,u)
+ 
+
+c    Subtract const from u to make integral zero
       Wu = 0 
       do i=1,npts
-        Wu = Wu + beta(i)*wts(i) 
+        Wu = Wu + u(i)*wts(i) 
       enddo
-      call prin2('surface integral of beta=*',Wu,1)
+      call prin2('surface integral of u=*',Wu,1)
+      Wu = Wu/(4*pi)
+
+      call surf_vtk_plot_scalar(npatches,norders,ixyzs,iptype,
+     1   npts,srccoefs,srcvals,u,fname3,'psiapp')
+
+      print *, 'npts=',npts
+      print *, 'npatches=',npatches
+
+
 
       erra = 0
       ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
+      rr = 1.0d0
       do i=1,npts
-        erra=erra+((beta(i))**2)*wts(i)
+        erra=  erra + (u(i)-rrhs1(i))**2*wts(i)
+        ra = ra + (rrhs1(i))**2*wts(i)
       enddo
-      erra = sqrt(erra)
-      call prin2('norm of surface beta=*',erra,1)
+      erra = sqrt(erra/ra)
+      call prin2('error in lapbel solution =*',erra,1)
 
 
-
-
-      call surf_grad(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,alpha,sgalpha)
-
-
-      call surf_grad(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,beta,sgbeta)
-
-
-      call ncross(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,sgbeta,nsgbeta)
-
-      call surf_vtk_plot_vec(npatches,norders,ixyzs,iptype,
-     1  npts,srccoefs,srcvals,sgalpha,fname2,
-     1  'sg_alpha') 
-
-      call surf_vtk_plot_vec(npatches,norders,ixyzs,iptype,
-     1  npts,srccoefs,srcvals,nsgbeta,fname3,'nsg_beta') 
-
-
-
-C$OMP PARALLEL DO DEFAULT(SHARED)      
-      do i=1,npts 
-        H(1,i) = F(1,i)-sgalpha(1,i)-nsgbeta(1,i)
-        H(2,i) = F(2,i)-sgalpha(2,i)-nsgbeta(2,i)
-        H(3,i) = F(3,i)-sgalpha(3,i)-nsgbeta(3,i)
-      enddo
-C$OMP END PARALLEL DO      
-
-      erra = 0
-      ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      do i=1,npts
-        erra=erra+((H(1,i))**2)*wts(i)
-        erra=erra+((H(2,i))**2)*wts(i)
-        erra=erra+((H(3,i))**2)*wts(i) 
-
-      enddo
-      erra = sqrt(erra)
-      call prin2('L2 norm of harmonic H=*',erra,1)
-
-      erra = 0
-      ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      do i=1,npts
-        erra=erra+((H(1,i))**2)
-        erra=erra+((H(2,i))**2)
-        erra=erra+((H(3,i))**2) 
-        erra = sqrt(erra)
-        ra = max(ra, erra)
-        erra = 0.0d0
-      enddo
-      call prin2('L_inf norm of harmonic H=*',ra,1)
-
-      call surf_vtk_plot_vec(npatches,norders,ixyzs,iptype,
-     1  npts,srccoefs,srcvals,H,fname4,'H') 
-
-
-
-      call surf_div(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,H,rrhs1)
-
-      erra = 0
-      ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      do i=1,npts
-        erra=  erra + ((rrhs1(i))**2)*wts(i)
-      enddo
-      erra = sqrt(erra)
-      call prin2('harmonic comp error in div =*',erra,1)
-
-
-      call ncross(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,H,nsgbeta)
-
-
-      call surf_div(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,nsgbeta,rrhs2)
-
-      erra = 0
-      ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      do i=1,npts
-        erra=  erra + ((rrhs2(i))**2)*wts(i)
-      enddo
-      erra = sqrt(erra)
-      call prin2('harmonic comp error in curl =*',erra,1)
-
-
-
-      
       stop
       end
-
 
 
 
@@ -932,98 +667,4 @@ c
       end
 
 
-      subroutine zero(npts,F)
-      implicit none
-      integer  npts
-      real *8 :: F(3,npts)
-      integer i
 
-      do i=1,npts
-        F(1,i) = 0 
-        F(2,i) = 0 
-        F(3,i) = 0 
-      enddo
-
-      return
-      end
-
-
-      subroutine ncross(npatches,norders,ixyzs,iptype,
-     1   npts,srccoefs,srcvals,F,nF) 
-      implicit none
-      integer  npatches,norders(npatches)
-      integer  ixyzs(npatches+1),iptype(npatches)
-      integer   npts
-      real *8  srccoefs(9,npts),srcvals(12,npts)
-      real *8   F(3,npts)
-      real *8   nF(3,npts)
-      integer i
-
-      do i=1,npts
-        nF(1,i) = srcvals(11,i)*F(3,i)-srcvals(12,i)*F(2,i) 
-        nF(2,i) = srcvals(12,i)*F(1,i)-srcvals(10,i)*F(3,i) 
-        nF(3,i) = srcvals(10,i)*F(2,i)-srcvals(11,i)*F(1,i) 
-      enddo
-
-      return
-      end
-
-
-      subroutine tangential_projection(npatches,norders,ixyzs,iptype,
-     1   npts,srccoefs,srcvals,V,F) 
-      implicit none
-      integer  npatches,norders(npatches)
-      integer  ixyzs(npatches+1),iptype(npatches)
-      integer  npts
-      real *8  srccoefs(9,npts),srcvals(12,npts)
-      real *8  V(3,npts)
-      real *8  F(3,npts)
-      integer i
-      real *8 ndotV
-
-      ndotV = 0
-      do i=1,npts
-        ndotV = srcvals(10,i)*V(1,i) + srcvals(11,i)*V(2,i) 
-     1         + srcvals(12,i)*V(3,i)
-
-        F(1,i) = V(1,i)-srcvals(10,i)*ndotV
-        F(2,i) = V(2,i)-srcvals(11,i)*ndotV
-        F(3,i) = V(3,i)-srcvals(12,i)*ndotV 
-      enddo
-
-      return
-      end
-
-
-      subroutine biot_savart(npatches,norders,ixyzs,iptype,
-     1   npts,srccoefs,srcvals,V) 
-      implicit none
-      integer  npatches,norders(npatches)
-      integer  ixyzs(npatches+1),iptype(npatches)
-      integer  npts
-      real *8  srccoefs(9,npts),srcvals(12,npts)
-      real *8  V(3,npts)
-      integer i
-      real *8 lcross(3,npts),l(3),nrm
-
-      l(1) = 0.0d0
-      l(2) = 1.0d0
-      l(3) = 1.0d0
-      do i=1,npts
-        lcross(1,i) = l(2)*(srcvals(3,i)-0.2)-l(3)*(srcvals(2,i)-0.2) 
-        lcross(2,i) = l(3)*(srcvals(1,i)-0.2)-l(1)*(srcvals(3,i)-0.2) 
-        lcross(3,i) = l(1)*(srcvals(2,i)-0.2)-l(2)*(srcvals(1,i)-0.2) 
-      enddo
-
-
-      do i=1,npts
-        nrm = (srcvals(1,i)-0.2)**2+(srcvals(2,i)-0.2)**2
-     1           +(srcvals(3,i)-0.2)**2
-        nrm = nrm**(1.5)
-        V(1,i) = lcross(1,i)/nrm
-        V(2,i) = lcross(2,i)/nrm
-        V(3,i) = lcross(3,i)/nrm 
-      enddo
-
-      return
-      end
