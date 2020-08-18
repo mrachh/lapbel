@@ -1,7 +1,7 @@
       implicit real *8 (a-h,o-z) 
       real *8, allocatable :: srcvals(:,:),srccoefs(:,:)
       real *8, allocatable :: wts(:),rsigma(:),nF(:,:)
-      integer ipars(2)
+      integer ipars(2),d(3)
       integer, allocatable :: ipatch_id(:)
       real *8, allocatable :: uvs_targ(:,:),V(:,:),beta(:),alpha(:)
       real *8 dpars(2)
@@ -31,14 +31,14 @@
       integer, allocatable :: col_ptr(:),row_ind(:)
       integer, allocatable :: ixyzso(:),novers(:)
       integer, allocatable :: row_ptr(:),col_ind(:),iquad(:)
+      integer, allocatable :: seed(:),seed_old(:)
 
 
-
-      real *8 thet,phi,eps_gmres,Wg,Wu
+      real *8 thet,phi,eps_gmres,Wg,Wu,rnd,Hnorm,Fnorm
       complex * 16 zpars(3)
-      integer numit,niter
+      integer numit,niter,sizer,n_min,n_max,ran_len,ran_int,clock
       character *100 title,dirname
-      character *300 fname,fname1,fname2,fname3,fname4
+      character *300 fname,fname1,fname2,fname3,fname4,fname5
 
       real *8, allocatable :: w(:,:)
 
@@ -54,7 +54,33 @@
       done = 1
       pi = atan(done)*4
 
+      call random_seed(sizer)
+      print *, sizer
+      allocate(seed(sizer+1),seed_old(sizer+1))
+ 
+!  illustrate use of put and get
 
+      CALL SYSTEM_CLOCK(COUNT=clock)
+
+      seed = clock + 37 * (/ (i - 1, i = 1, sizer) /)
+      CALL RANDOM_SEED(PUT = seed)
+
+
+
+!  confirm value of seed
+      print *, "seed = ", seed
+      ran_len = 3         ! length of sequence
+      n_min = 1
+      n_max = 3
+      do i = 1,ran_len
+        call random_number(rnd)
+        d(i) = (n_max - n_min + 1)*rnd + n_min
+        print *,d(i)
+      end do
+
+
+         
+            
       zk = 4.4d0+ima*0.0d0
       zpars(1) = zk 
       zpars(2) = -ima*zk
@@ -98,33 +124,68 @@
         fname = 'torus.vtk'
       endif
       
-      fname1='stell_hodge_tanproj_40_8.vtk'
-      fname2='stell_hodge_dfree_40_8.vtk'
-      fname3='stell_hodge_cfree_40_8.vtk'
-      fname4='stell_hodge_harm_40_8.vtk'
- 
-      norder = 8 
-      npols = (norder+1)*(norder+2)/2
 
-      npts = npatches*npols
-      allocate(srcvals(12,npts),srccoefs(9,npts))
+c      norder = 8 
+c      npols = (norder+1)*(norder+2)/2
+c
+c      npts = npatches*npols
+c      allocate(srcvals(12,npts),srccoefs(9,npts))
       ifplot = 0
+c
+c      call setup_geom(igeomtype,norder,npatches,ipars, 
+c     1       srcvals,srccoefs,ifplot,fname)
+c
+c      allocate(norders(npatches),ixyzs(npatches+1),iptype(npatches))
 
-      call setup_geom(igeomtype,norder,npatches,ipars, 
-     1       srcvals,srccoefs,ifplot,fname)
+c      do i=1,npatches
+c        norders(i) = norder
+c        ixyzs(i) = 1 +(i-1)*npols
+c        iptype(i) = 1
+c      enddo
+c
+c      print *, 'npts=',npts
+c
+c      ixyzs(npatches+1) = 1+npols*npatches
 
-      allocate(norders(npatches),ixyzs(npatches+1),iptype(npatches))
 
-      do i=1,npatches
-        norders(i) = norder
-        ixyzs(i) = 1 +(i-1)*npols
-        iptype(i) = 1
-      enddo
 
-      print *, 'npts=',npts
+      fname = '../../geometries/genus240_o05_r01.go3'
+      
+      call open_gov3_geometry_mem(fname,npatches,npts)
 
-      ixyzs(npatches+1) = 1+npols*npatches
-      allocate(wts(npts),rrhs2t(npts),H(3,npts))
+      call prinf('npatches=*',npatches,1)
+      call prinf('npts=*',npts,1)
+
+      allocate(srcvals(12,npts),srccoefs(9,npts))
+      allocate(ixyzs(npatches+1),iptype(npatches),norders(npatches))
+      allocate(wts(npts))
+
+      call open_gov3_geometry(fname,npatches,norders,ixyzs,
+     1   iptype,npts,srcvals,srccoefs,wts)
+ 
+      fname1='res/g240/hodge_tanproj_g240_o05_r01_'//CHAR(d(1)+48)//
+     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
+      fname2='res/g240/hodge_dfree_g240_o05_r01_'//CHAR(d(1)+48)//
+     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
+
+      fname3='res/g240/hodge_cfree_g240_o05_r01_'//CHAR(d(1)+48)//
+     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
+
+      fname4='res/g240/hodge_harm_g240_o05_r01_'//CHAR(d(1)+48)//
+     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
+
+      fname5='res/g240/hodge_geo_g240_o05_r01_'//CHAR(d(1)+48)//
+     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
+
+
+      print *, 'F1:', fname1
+      print *, 'F2:', fname2
+      print *, 'F3:', fname3
+      print *, 'F4:', fname4
+      print *, 'F5:', fname5
+
+      
+      allocate(rrhs2t(npts),H(3,npts))
       call get_qwts(npatches,norders,ixyzs,iptype,npts,srcvals,wts)
 
 
@@ -305,9 +366,9 @@ c      call prin2('rrhs=*',rrhs,24)
         nFt(3,i)=-1.0d0*srcvals(2,i)
 
         rrhs2t(i) = -2.0d0*srcvals(1,i)
-        V(1,i) = sin(srcvals(1,i))**2
-        V(2,i) = sin(srcvals(1,i)**2)
-        V(3,i) = sin(srcvals(3,i))
+        V(1,i) = (srcvals(1,i))**2
+        V(2,i) = (5*srcvals(1,i)**2+6*srcvals(2,i)**3)
+        V(3,i) = (srcvals(3,i)**4)
         Ft(1,i)=-srcvals(1,i)*srcvals(3,i)**2
         Ft(2,i)=-srcvals(2,i)*srcvals(3,i)**2
         Ft(3,i)=srcvals(3,i)-srcvals(3,i)**3 
@@ -329,10 +390,14 @@ c      call prin2('rrhs=*',rrhs,24)
      1   srccoefs,srcvals,V)
 
 
-      
+c      call poly_field(npatches,norders,ixyzs,iptype,npts,
+c     1   srccoefs,srcvals,d,V)
+
+      print *, 'poly field call done'
+
       title = 'u(x)'
       call surf_vtk_plot_scalar(npatches,norders,ixyzs,iptype,
-     1   npts,srccoefs,srcvals,u,fname,title)
+     1   npts,srccoefs,srcvals,u,fname5,title)
 
       do i=1,npts
         Wg = Wg + (1.0d0)**2*wts(i) 
@@ -362,47 +427,18 @@ c      call prin2('rrhs=*',rrhs,24)
       call prin2('norm of surface grad=*',erra,1)
 
 
-      erra = 0
-      ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      do i=1,npts
-        erra=erra+((sgalpha(1,i)-gu(1,i))**2)*wts(i)
-        erra=erra+((sgalpha(2,i)-gu(2,i))**2)*wts(i)
-        erra=erra+((sgalpha(3,i)-gu(3,i))**2)*wts(i) 
-        ra=ra+((gu(1,i))**2)*wts(i)
-        ra=ra+((gu(2,i))**2)*wts(i)
-        ra=ra+((gu(3,i))**2)*wts(i) 
-
-
-      enddo
-      erra = sqrt(erra/ra)
-      call prin2('error in surface grad=*',erra,1)
-
-      
+      print *, 'calling tangential projection'
    
 
       call tangential_projection(npatches,norders,ixyzs,iptype,npts,
      1   srccoefs,srcvals,V,F)
 
-      erra = 0
-      ra = 0
-      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
-      do i=1,npts
-        erra=  erra + ((F(1,i)-Ft(1,i))**2)*wts(i)
-        erra=  erra + ((F(2,i)-Ft(2,i))**2)*wts(i)
-        erra=  erra + ((F(3,i)-Ft(3,i))**2)*wts(i) 
-        ra = ra + (Ft(1,i))**2*wts(i)
-        ra = ra + (Ft(2,i))**2*wts(i)
-        ra = ra + (Ft(3,i))**2*wts(i)
- 
-      enddo
-      erra = sqrt(erra/ra)
-      call prin2('error in tangential proj=*',erra,1)
+      print *, 'F calculated'
 
       call surf_vtk_plot_vec(npatches,norders,ixyzs,iptype,
      1  npts,srccoefs,srcvals,F,fname1,'F') 
 
-    
+       
 
       call ncross(npatches,norders,ixyzs,iptype,npts,
      1   srccoefs,srcvals,F,nF)
@@ -476,7 +512,7 @@ c    Surface integral should be zero
 
        
 
-200      eps_gmres = 1.0d-14
+200      eps_gmres = 1.0d-10
       call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
      1  srcvals,eps,numit,rrhs1,eps_gmres,niter,errs,rres,sigma) 
 
@@ -510,7 +546,7 @@ c    Surface integral should be zero
 
 
 
-      eps_gmres = 1.0d-14
+      eps_gmres = 1.0d-10
       call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
      1  srcvals,eps,numit,rrhs2,eps_gmres,niter,errs,rres,sigma) 
 
@@ -583,6 +619,7 @@ C$OMP END PARALLEL DO
 
       enddo
       erra = sqrt(erra)
+      Hnorm = erra
       call prin2('L2 norm of harmonic H=*',erra,1)
 
       erra = 0
@@ -606,6 +643,24 @@ C$OMP END PARALLEL DO
       call surf_div(npatches,norders,ixyzs,iptype,npts,
      1   srccoefs,srcvals,H,rrhs1)
 
+
+      erra = 0
+      ra = 0
+      rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
+      do i=1,npts
+        erra=erra+((F(1,i))**2)*wts(i)
+        erra=erra+((F(2,i))**2)*wts(i)
+        erra=erra+((F(3,i))**2)*wts(i) 
+
+      enddo
+      erra = sqrt(erra)
+      Fnorm = erra
+      call prin2('L2 norm of tan proj=*',erra,1)
+
+
+
+
+
       erra = 0
       ra = 0
       rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
@@ -614,6 +669,9 @@ C$OMP END PARALLEL DO
       enddo
       erra = sqrt(erra)
       call prin2('harmonic comp error in div =*',erra,1)
+      call prin2('harmonic comp error in div rel H=*',erra/Hnorm,1)
+      call prin2('harmonic comp error in div rel F=*',erra/Fnorm,1)
+
 
 
       call ncross(npatches,norders,ixyzs,iptype,npts,
@@ -631,6 +689,8 @@ C$OMP END PARALLEL DO
       enddo
       erra = sqrt(erra)
       call prin2('harmonic comp error in curl =*',erra,1)
+      call prin2('harmonic comp error in curl rel H=*',erra/Hnorm,1)
+      call prin2('harmonic comp error in curl rel F=*',erra/Fnorm,1)
 
 
 
@@ -1004,21 +1064,24 @@ c
       real *8  srccoefs(9,npts),srcvals(12,npts)
       real *8  V(3,npts)
       integer i
-      real *8 lcross(3,npts),l(3),nrm
+      real *8 lcross(3,npts),l(3),nrm,xx,yy,zz
 
       l(1) = 0.0d0
       l(2) = 1.0d0
       l(3) = 1.0d0
+      xx = 25.0d0
+      yy = 0.0d0
+      zz = -50.0d0
       do i=1,npts
-        lcross(1,i) = l(2)*(srcvals(3,i)-0.2)-l(3)*(srcvals(2,i)-0.2) 
-        lcross(2,i) = l(3)*(srcvals(1,i)-0.2)-l(1)*(srcvals(3,i)-0.2) 
-        lcross(3,i) = l(1)*(srcvals(2,i)-0.2)-l(2)*(srcvals(1,i)-0.2) 
+        lcross(1,i) = l(2)*(srcvals(3,i)-zz)-l(3)*(srcvals(2,i)-yy) 
+        lcross(2,i) = l(3)*(srcvals(1,i)-xx)-l(1)*(srcvals(3,i)-zz) 
+        lcross(3,i) = l(1)*(srcvals(2,i)-yy)-l(2)*(srcvals(1,i)-xx) 
       enddo
 
 
       do i=1,npts
-        nrm = (srcvals(1,i)-0.2)**2+(srcvals(2,i)-0.2)**2
-     1           +(srcvals(3,i)-0.2)**2
+        nrm = (srcvals(1,i)-xx)**2+(srcvals(2,i)-yy)**2
+     1           +(srcvals(3,i)-zz)**2
         nrm = nrm**(1.5)
         V(1,i) = lcross(1,i)/nrm
         V(2,i) = lcross(2,i)/nrm
@@ -1027,3 +1090,64 @@ c
 
       return
       end
+
+
+      subroutine poly_field(npatches,norders,ixyzs,iptype,
+     1   npts,srccoefs,srcvals,d,V) 
+      implicit none
+      integer  npatches,norders(npatches)
+      integer  ixyzs(npatches+1),iptype(npatches)
+      integer  npts,d(3)
+      real *8  srccoefs(9,npts),srcvals(12,npts)
+      real *8  V(3,npts)
+      integer i,npoly1,npoly2,npoly3
+      real *8 lcross(3,npts),l(3),nrm
+c      real *8 val11(npts,0:d(1)),val12(npts,0:d(2)),val13(npts,0:d(3))
+c      real *8 val21(npts,0:d(1)),val22(npts,0:d(2)),val23(npts,0:d(3))
+c      real *8 val31(npts,0:d(1)),val32(npts,0:d(2)),val33(npts,0:d(3))
+      real *8, allocatable :: pols1(:),pols2(:),pols3(:)
+     
+      print *, 'Points assigned polyfield'
+      npoly1 = (d(1)+1)*(d(1)+2)*(d(1)+3)/6
+      npoly2 = (d(2)+1)*(d(2)+2)*(d(2)+3)/6
+      npoly3 = (d(3)+1)*(d(3)+2)*(d(3)+3)/6
+ 
+      allocate(pols1(npoly1),pols2(npoly2),pols3(npoly3))
+          
+c      call j_polynomial(npts,d(1),0,0,xx,val11)
+c      call prin2('legen poly =*',val11,24)
+c
+c      call j_polynomial(npts,d(1),0,0,xx,val11)
+c      print *, 'first j poly called'
+c      call j_polynomial(npts,d(1),0,0,yy,val12)
+c      call j_polynomial(npts,d(1),0,0,zz,val13)
+c      call j_polynomial(npts,d(2),0,0,xx,val21)
+c      call j_polynomial(npts,d(2),0,0,yy,val22)
+c      call j_polynomial(npts,d(2),0,0,zz,val23)
+c      call j_polynomial(npts,d(3),0,0,xx,val31)
+c      call j_polynomial(npts,d(3),0,0,yy,val32)
+c      call j_polynomial(npts,d(3),0,0,zz,val33)
+ 
+      print *,'all j polys called'
+      do i=1,npts
+c        V(1,i) = val11(i,d(1))*val12(i,d(1))*val13(i,d(1))
+c        V(2,i) = val21(i,d(2))*val22(i,d(2))*val23(i,d(2))
+c        V(3,i) = val31(i,d(3))*val32(i,d(3))*val33(i,d(3))
+c        V(1,i) = 1.0d0
+c        V(2,i) = 1.0d0
+c        V(3,i) = 1.0d0
+        l(1) = 0.5*(0.2*srcvals(1,i) -1.0d0)
+        l(2) = 0.5*(1.0d0/7)*srcvals(2,i)
+        l(3) = 0.5*(2*srcvals(3,i) - 1.0d0)
+        call legetens_pols_3d(l,d(1),'T',pols1)
+        call legetens_pols_3d(l,d(2),'T',pols2)
+        call legetens_pols_3d(l,d(3),'T',pols3)
+        V(1,i) = pols1(npoly1/2)
+        V(2,i) = pols2(npoly2/2)
+        V(3,i) = pols3(npoly3/2)
+      enddo
+      print *, 'V assigned'
+      return
+      end
+
+
