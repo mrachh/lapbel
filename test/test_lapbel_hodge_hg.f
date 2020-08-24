@@ -163,18 +163,23 @@ c      ixyzs(npatches+1) = 1+npols*npatches
       call open_gov3_geometry(fname,npatches,norders,ixyzs,
      1   iptype,npts,srcvals,srccoefs,wts)
  
-      fname1='hodge_tanproj_g10_o08_r03_'//CHAR(d(1)+48)//
+      fname1='../../../lbres/res/g10f/hodge_tanproj_g10_o08_r03_'
+     1             //CHAR(d(1)+48)//
      1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
-      fname2='hodge_dfree_g10_o08_r03_'//CHAR(d(1)+48)//
-     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
-
-      fname3='hodge_cfree_g10_o08_r03_'//CHAR(d(1)+48)//
-     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
-
-      fname4='hodge_harm_g10_o08_r03_'//CHAR(d(1)+48)//
+      fname2='../../../lbres/res/g10f/hodge_dfree_g10_o08_r03_'
+     1            //CHAR(d(1)+48)//
      1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
 
-      fname5='hodge_geo_g10_o08_r03_'//CHAR(d(1)+48)//
+      fname3='../../../lbres/res/g10f/hodge_cfree_g10_o08_r03_'
+     1            //CHAR(d(1)+48)//
+     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
+
+      fname4='../../../lbres/res/g10f/hodge_harm_g10_o08_r03_'
+     1               //CHAR(d(1)+48)//
+     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
+
+      fname5='../../../lbres/res/g10f/hodge_geo_g10_o08_r03_'
+     1             //CHAR(d(1)+48)//
      1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
 
 

@@ -40,7 +40,7 @@
       character *100 title,dirname
       character *300 fname,fname1,fname2,fname3,fname4,fname5
 
-      real *8, allocatable :: w(:,:),rsc(:)
+      real *8, allocatable :: w(:,:)
 
       logical isout0,isout1
 
@@ -71,7 +71,7 @@
       print *, "seed = ", seed
       ran_len = 3         ! length of sequence
       n_min = 1
-      n_max = 1
+      n_max = 5
       do i = 1,ran_len
         call random_number(rnd)
         d(i) = (n_max - n_min + 1)*rnd + n_min
@@ -149,7 +149,7 @@ c      ixyzs(npatches+1) = 1+npols*npatches
 
 
 
-      fname = '../../geometries/genus240_o05_r01.go3'
+      fname = '../../geometries/Genus_10_files/Genus_10_o08_r03.go3'
       
       call open_gov3_geometry_mem(fname,npatches,npts)
 
@@ -159,35 +159,27 @@ c      ixyzs(npatches+1) = 1+npols*npatches
       allocate(srcvals(12,npts),srccoefs(9,npts))
       allocate(ixyzs(npatches+1),iptype(npatches),norders(npatches))
       allocate(wts(npts))
-      allocate(rsc(npatches))
-
-C$OMP PARALLEL DO DEFAULT(SHARED) 
-      do i=1,npatches
-        rsc(i) = 1
-      enddo
-C$OMP END PARALLEL DO     
-
 
       call open_gov3_geometry(fname,npatches,norders,ixyzs,
      1   iptype,npts,srcvals,srccoefs,wts)
  
-      fname1='../../../lbres/res/g240/hodge_tanproj_g240_o05_r01_'
-     1           //CHAR(d(1)+48)//
+      fname1='../../../lbres/res/g10f/hodge_tanproj_g10_o08_r03_'
+     1             //CHAR(d(1)+48)//
      1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
-      fname2='../../../lbres/res/g240/hodge_dfree_g240_o05_r01_'
+      fname2='../../../lbres/res/g10f/hodge_dfree_g10_o08_r03_'
      1            //CHAR(d(1)+48)//
      1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
 
-      fname3='../../../lbres/res/g240/hodge_cfree_g240_o05_r01_'
-     1                 //CHAR(d(1)+48)//
+      fname3='../../../lbres/res/g10f/hodge_cfree_g10_o08_r03_'
+     1            //CHAR(d(1)+48)//
      1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
 
-      fname4='../../../lbres/res/g240/hodge_harm_g240_o05_r01_'
-     1              //CHAR(d(1)+48)//
-     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
-
-      fname5='../../../lbres/res/g240/hodge_geo_g240_o05_r01_'
+      fname4='../../../lbres/res/g10f/hodge_harm_g10_o08_r03_'
      1               //CHAR(d(1)+48)//
+     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
+
+      fname5='../../../lbres/res/g10f/hodge_geo_g10_o08_r03_'
+     1             //CHAR(d(1)+48)//
      1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
 
 
@@ -321,7 +313,7 @@ C$OMP END PARALLEL DO
 
       iquadtype = 1
 
-      call getnearquad_lap_bel2(npatches,norders,
+      call getnearquad_lap_bel2fast(npatches,norders,
      1      ixyzs,iptype,npts,srccoefs,srcvals,
      1      ipatch_id,uvs_targ,eps,iquadtype,nnz,row_ptr,col_ind,
      1      iquad,rfac0,nquad,wnear)
@@ -362,7 +354,7 @@ C$OMP END PARALLEL DO
 c      call prin2('pot=*',pot,24)
 c      call prin2('rrhs=*',rrhs,24)
      
-      call prin2('starting iterative solve*',i,0)
+      call prin2('starting FAST iterative solve*',i,0)
       numit = 50
       allocate(errs(numit+1))
      
@@ -408,16 +400,9 @@ c     1   srccoefs,srcvals,V)
 
       print *, 'poly field call done'
 
-
-      call surf_vtk_plot_vec(npatches,norders,ixyzs,iptype,
-     1  npts,srccoefs,srcvals,gu,fname5,'gu') 
-
-       
-
-
-c      title = 'u(x)'
-c      call surf_vtk_plot_scalar(npatches,norders,ixyzs,iptype,
-c     1   npts,srccoefs,srcvals,u,fname5,title)
+      title = 'u(x)'
+      call surf_vtk_plot_scalar(npatches,norders,ixyzs,iptype,
+     1   npts,srccoefs,srcvals,u,fname5,title)
 
       do i=1,npts
         Wg = Wg + (1.0d0)**2*wts(i) 
@@ -455,7 +440,6 @@ c     1   npts,srccoefs,srcvals,u,fname5,title)
 
       print *, 'F calculated'
 
-
       erra = 0
       ra = 0
       rr = ((1.0d0)/(4*(2*nn+1.0d0)**2)) 
@@ -490,8 +474,6 @@ c     scale F to norm 1
       Fnorm = erra
       call prin2('scaled L2 norm of tan proj F=*',erra,1)
 
-c      call surf_fun_error(3,npatches,norders,ixyzs,iptype,
-c     1     npts,rsc,dcoefs,errp,errm)
 
 
       call surf_vtk_plot_vec(npatches,norders,ixyzs,iptype,
@@ -571,8 +553,9 @@ c    Surface integral should be zero
 
        
 
-200      eps_gmres = 1.0d-10
-      call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
+200      eps_gmres = 1.0d-7
+      call lap_bel_solver2fast(npatches,norders,ixyzs,iptype,
+     1        npts,srccoefs,
      1  srcvals,eps,numit,rrhs1,eps_gmres,niter,errs,rres,sigma) 
 
       call prinf('niter=*',niter,1)
@@ -605,8 +588,9 @@ c    Surface integral should be zero
 
 
 
-      eps_gmres = 1.0d-10
-      call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
+      eps_gmres = 1.0d-7
+      call lap_bel_solver2fast(npatches,norders,ixyzs,iptype,
+     1      npts,srccoefs,
      1  srcvals,eps,numit,rrhs2,eps_gmres,niter,errs,rres,sigma) 
 
       call prinf('niter=*',niter,1)
@@ -1109,24 +1093,21 @@ c
       real *8  srccoefs(9,npts),srcvals(12,npts)
       real *8  V(3,npts)
       integer i
-      real *8 lcross(3,npts),l(3),nrm,xx,yy,zz
+      real *8 lcross(3,npts),l(3),nrm
 
       l(1) = 0.0d0
       l(2) = 1.0d0
       l(3) = 1.0d0
-      xx = 25.0d0
-      yy = 0.0d0
-      zz = -50.0d0
       do i=1,npts
-        lcross(1,i) = l(2)*(srcvals(3,i)-zz)-l(3)*(srcvals(2,i)-yy) 
-        lcross(2,i) = l(3)*(srcvals(1,i)-xx)-l(1)*(srcvals(3,i)-zz) 
-        lcross(3,i) = l(1)*(srcvals(2,i)-yy)-l(2)*(srcvals(1,i)-xx) 
+        lcross(1,i) = l(2)*(srcvals(3,i)-0)-l(3)*(srcvals(2,i)-0) 
+        lcross(2,i) = l(3)*(srcvals(1,i)-15)-l(1)*(srcvals(3,i)-0) 
+        lcross(3,i) = l(1)*(srcvals(2,i)-0)-l(2)*(srcvals(1,i)-15) 
       enddo
 
 
       do i=1,npts
-        nrm = (srcvals(1,i)-xx)**2+(srcvals(2,i)-yy)**2
-     1           +(srcvals(3,i)-zz)**2
+        nrm = (srcvals(1,i)-15)**2+(srcvals(2,i)-0)**2
+     1           +(srcvals(3,i)-0)**2
         nrm = nrm**(1.5)
         V(1,i) = lcross(1,i)/nrm
         V(2,i) = lcross(2,i)/nrm
@@ -1181,18 +1162,15 @@ c        V(3,i) = val31(i,d(3))*val32(i,d(3))*val33(i,d(3))
 c        V(1,i) = 1.0d0
 c        V(2,i) = 1.0d0
 c        V(3,i) = 1.0d0
-        l(1) = (1.0d0/50)*srcvals(1,i)
-        l(2) = (1.0d0/50)*srcvals(2,i)
-        l(3) = (1.0d0/100)*srcvals(3,i) + 0.5d0 
+        l(1) = 0.7*(0.2*srcvals(1,i) -1.0d0)
+        l(2) = 0.7*(1.0d0/7)*srcvals(2,i)
+        l(3) = 0.7*(2*srcvals(3,i) - 1.0d0)
         call legetens_pols_3d(l,d(1),'T',pols1)
         call legetens_pols_3d(l,d(2),'T',pols2)
         call legetens_pols_3d(l,d(3),'T',pols3)
         V(1,i) = pols1(npoly1/2)
         V(2,i) = pols2(npoly2/2)
         V(3,i) = pols3(npoly3/2)
-        V(1,i) = srcvals(1,i)
-        V(2,i) = srcvals(2,i)
-        V(3,i) = srcvals(3,i)
       enddo
       print *, 'V assigned'
       return

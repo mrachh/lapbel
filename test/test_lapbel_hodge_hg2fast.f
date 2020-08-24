@@ -321,7 +321,7 @@ C$OMP END PARALLEL DO
 
       iquadtype = 1
 
-      call getnearquad_lap_bel2(npatches,norders,
+      call getnearquad_lap_bel2fast(npatches,norders,
      1      ixyzs,iptype,npts,srccoefs,srcvals,
      1      ipatch_id,uvs_targ,eps,iquadtype,nnz,row_ptr,col_ind,
      1      iquad,rfac0,nquad,wnear)
@@ -362,7 +362,7 @@ C$OMP END PARALLEL DO
 c      call prin2('pot=*',pot,24)
 c      call prin2('rrhs=*',rrhs,24)
      
-      call prin2('starting iterative solve*',i,0)
+      call prin2('starting FAST iterative solve*',i,0)
       numit = 50
       allocate(errs(numit+1))
      
@@ -571,8 +571,9 @@ c    Surface integral should be zero
 
        
 
-200      eps_gmres = 1.0d-10
-      call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
+200      eps_gmres = 1.0d-7
+      call lap_bel_solver2fast(npatches,norders,ixyzs,iptype,
+     1       npts,srccoefs,
      1  srcvals,eps,numit,rrhs1,eps_gmres,niter,errs,rres,sigma) 
 
       call prinf('niter=*',niter,1)
@@ -605,8 +606,9 @@ c    Surface integral should be zero
 
 
 
-      eps_gmres = 1.0d-10
-      call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
+      eps_gmres = 1.0d-7
+      call lap_bel_solver2fast(npatches,norders,ixyzs,iptype,
+     1    npts,srccoefs,
      1  srcvals,eps,numit,rrhs2,eps_gmres,niter,errs,rres,sigma) 
 
       call prinf('niter=*',niter,1)
