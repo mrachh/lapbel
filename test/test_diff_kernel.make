@@ -22,12 +22,12 @@ endif
 LIBS = -lfmm3dbie -lfmm3d  -lopenblas ${LDFLAGS}
 ifeq ($(HOST),gcc)
     FC=gfortran -L${LDF} 
-    FFLAGS=-fPIC -O3 -funroll-loops -march=native  
+    FFLAGS=-fPIC -O3 -funroll-loops -march=native -std=legacy 
 endif
 
 ifeq ($(HOST),gcc-openmp)
     FC = gfortran 
-    FFLAGS=-fPIC -O3 -funroll-loops -march=native -fopenmp 
+    FFLAGS=-fPIC -O3 -funroll-loops -march=native -fopenmp -std=legacy 
 endif
 
 ifeq ($(HOST),intel)
@@ -46,8 +46,6 @@ LBW=../src/lapbel_wrap
 .PHONY: all clean 
 
 OBJECTS =  test_diff_kernel.o \
-    $(LBW)/lapbel.o \
-    $(LBW)/lapbel_kernels.o \
     $(SURF)/surf_routs.o \
 
 

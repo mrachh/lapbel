@@ -39,8 +39,11 @@
       xyz_out(2) = -0.03d0
       xyz_out(3) = 3.15d2
 
-      fname = '../../fmm3dbie/geometries/sphere_768_o03.go3'
-      fname = '../../fmm3dbie/geometries/genus50_o05_r01.go3'
+c      fname = '../../fmm3dbie/geometries/sphere_768_o03.go3'
+      fname = '../../fmm3dbie/geometries/genus50_o07_r01.go3'
+cc      fname = '../../fmm3dbie/geometries/simplest_cube_quadratic_v4'//
+cc     1  '_o08_r03.go3'
+      
       call open_gov3_geometry_mem(fname,npatches,npts)
 
       call prinf('npatches=*',npatches,1)
@@ -120,7 +123,7 @@ c
 
       eps = 0.50001d-6
 
-      ikerorder = -1
+      ikerorder = 0
       zk = 0
 
 
