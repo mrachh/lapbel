@@ -95,7 +95,7 @@
       xyz_out(2) = 3.1d0
       xyz_out(3) = 20.1d0
 
-      igeomtype = 2
+      igeomtype = 4
 
       if(igeomtype.eq.1) then
         ipars(1) = 3
@@ -330,7 +330,7 @@ C$OMP END PARALLEL DO
 
       
 c     Evaluate DL on surface to check geometry info
-      dpars(2) = 1.0d0/4/pi
+      dpars(2) = 1.0d0
       dpars(1) = 0
  
 C$OMP PARALLEL DO DEFAULT(SHARED)      
@@ -579,7 +579,7 @@ c    Surface integral should be zero
       call prinf('niter=*',niter,1)
       call prin2('errs=*',errs,niter)
 
-300      dpars(1) = 1.0d0/4/pi
+300      dpars(1) = 1.0d0
       dpars(2) = 0
  
 
@@ -614,7 +614,7 @@ c    Surface integral should be zero
       call prinf('niter=*',niter,1)
       call prin2('errs=*',errs,niter)
 
-      dpars(1) = 1.0d0/4/pi
+      dpars(1) = 1.0d0
       dpars(2) = 0
  
 

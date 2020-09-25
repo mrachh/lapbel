@@ -40,7 +40,7 @@
       xyz_out(3) = 3.15d2
 
 c      fname = '../../fmm3dbie/geometries/sphere_768_o03.go3'
-      fname = '../../fmm3dbie/geometries/genus50_o07_r01.go3'
+      fname = '../../fmm3dbie/geometries/Manas_genus_50_o04_r02.go3'
 cc      fname = '../../fmm3dbie/geometries/simplest_cube_quadratic_v4'//
 cc     1  '_o08_r03.go3'
       

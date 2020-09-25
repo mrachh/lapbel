@@ -69,7 +69,7 @@
       xyz_out(2) = 3.1d0
       xyz_out(3) = 20.1d0
 
-      igeomtype = 2
+      igeomtype = 4
 
       if(igeomtype.eq.1) then
         ipars(1) = 3
@@ -92,8 +92,8 @@
       endif
 
       if(igeomtype.eq.4) then
-        ipars(1) = 40
-        ipars(2) = 20
+        ipars(1) = 10
+        ipars(2) = 5
         npatches = 2*ipars(1)*ipars(2)
         fname = 'torus.vtk'
       endif
@@ -148,7 +148,7 @@ c
         rrhs(i) = real(rhs(i))
       enddo
 
-      eps = 0.51d-7
+      eps = 0.51d-10
 
 
 c
@@ -185,11 +185,11 @@ C$OMP END PARALLEL DO
 c
 c    find near quadrature correction interactions
 c
-      call findnearmem(cms,npatches,rad_near,targs,npts,nnz)
+      call findnearmem(cms,npatches,rad_near,3,targs,npts,nnz)
 
       allocate(row_ptr(npts+1),col_ind(nnz))
       
-      call findnear(cms,npatches,rad_near,targs,npts,row_ptr, 
+      call findnear(cms,npatches,rad_near,3,targs,npts,row_ptr, 
      1        col_ind)
 
       allocate(iquad(nnz+1)) 
@@ -256,7 +256,7 @@ C$OMP END PARALLEL DO
 
       
 c     Evaluate DL on surface to check geometry info
-      dpars(2) = 1.0d0/4/pi
+      dpars(2) = 1.0d0
       dpars(1) = 0
  
 C$OMP PARALLEL DO DEFAULT(SHARED)      
@@ -476,14 +476,14 @@ c    Surface integral should be zero
 
        
 
-200      eps_gmres = 1.0d-14
+      eps_gmres = 1.0d-14
       call lap_bel_solver2(npatches,norders,ixyzs,iptype,npts,srccoefs,
      1  srcvals,eps,numit,rrhs1,eps_gmres,niter,errs,rres,sigma) 
 
       call prinf('niter=*',niter,1)
       call prin2('errs=*',errs,niter)
 
-300      dpars(1) = 1.0d0/4/pi
+      dpars(1) = 1.0d0
       dpars(2) = 0
  
 
@@ -517,7 +517,7 @@ c    Surface integral should be zero
       call prinf('niter=*',niter,1)
       call prin2('errs=*',errs,niter)
 
-      dpars(1) = 1.0d0/4/pi
+      dpars(1) = 1.0d0
       dpars(2) = 0
  
 

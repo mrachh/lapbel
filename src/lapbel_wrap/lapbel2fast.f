@@ -232,14 +232,6 @@ c
 
       endif
 
-      dpars = 1.0d0/4/pi
-
-C$OMP PARALLEL DO DEFAULT(SHARED)
-      do i=1,4*nquad
-        wnear(i) = wnear(i)*dpars
-      enddo
-C$OMP END PARALLEL DO
-
 
       return
       end
@@ -373,11 +365,11 @@ C$OMP END PARALLEL DO
 c
 c    find near quadrature correction interactions
 c
-      call findnearmem(cms,npatches,rad_near,targs,npts,nnz)
+      call findnearmem(cms,npatches,rad_near,3,targs,npts,nnz)
 
       allocate(row_ptr(npts+1),col_ind(nnz))
       
-      call findnear(cms,npatches,rad_near,targs,npts,row_ptr, 
+      call findnear(cms,npatches,rad_near,3,targs,npts,row_ptr, 
      1        col_ind)
 
       allocate(iquad(nnz+1)) 
@@ -1675,12 +1667,12 @@ c
 c    find near quadrature correction interactions
 c
       print *, "entering find near mem"
-      call findnearmem(cms,npatches,rad_near,targs,npts,nnz)
+      call findnearmem(cms,npatches,rad_near,3,targs,npts,nnz)
       print *, "nnz=",nnz
 
       allocate(row_ptr(npts+1),col_ind(nnz))
       
-      call findnear(cms,npatches,rad_near,targs,npts,row_ptr, 
+      call findnear(cms,npatches,rad_near,3,targs,npts,row_ptr, 
      1        col_ind)
 
       allocate(iquad(nnz+1)) 
@@ -1706,7 +1698,6 @@ c
 
       npts_over = ixyzso(npatches+1)-1
       print *, "npts_over=",npts_over
-      call prinf('novers=*',novers,100)
 
       allocate(srcover(12,npts_over),wover(npts_over))
 
@@ -1751,7 +1742,7 @@ c
 c     compute the right hand side S_{0}[f], note that
 c     quadrature is precomputed in wnear[2*nquad+1:3*nquad]   
 c
-      dpars(1) = 1.0d0/4/pi
+      dpars(1) = 1.0d0
       dpars(2) = 0
       call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
      1  iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,

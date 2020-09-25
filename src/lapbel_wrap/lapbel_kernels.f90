@@ -168,7 +168,8 @@ subroutine l3d_spp_sum_dp(srcinfo,ndt,targinfo,ndd,dpars,ndz,zk, &
   complex *16 :: zk
 
   real *8 dx(3),dns(3),dnt(3),r,d,drns,drnt,r3inv,r5inv
-  real *8 dnsnt,over4pi,rinv
+  real *8 dnsnt,rinv,over4pi
+  data over4pi/0.07957747154594767d0/
 
   dx(1) = targinfo(1) - srcinfo(1)
   dx(2) = targinfo(2) - srcinfo(2)
@@ -199,7 +200,7 @@ subroutine l3d_spp_sum_dp(srcinfo,ndt,targinfo,ndd,dpars,ndz,zk, &
 ! add in derivative of double layer
 !
   val = val - 3*drns*drnt*r5inv + dnsnt*r3inv
-  val = val
+  val = val*over4pi
 
 end subroutine l3d_spp_sum_dp
 

@@ -4,6 +4,7 @@
       integer ipars(2),d(3)
       integer, allocatable :: ipatch_id(:)
       real *8, allocatable :: uvs_targ(:,:),V(:,:),beta(:),alpha(:)
+      real *8, allocatable :: dV(:,:,:)
       real *8 dpars(2)
 
       integer, allocatable :: norders(:),ixyzs(:),iptype(:)
@@ -119,13 +120,13 @@
       endif
 
       if(igeomtype.eq.4) then
-        ipars(1) = 8*2
-        ipars(2) = 2*2
+        ipars(1) = 4*8
+        ipars(2) = 4*8
         npatches = 2*ipars(1)*ipars(2)
         fname = 'torus.vtk'
         xyz_out(1) = 0.1d0
         xyz_out(2) = 0.2d0
-        xyz_out(3) = 20.1d0
+        xyz_out(3) = 2.1d0
       endif
 
       dipvec(1) = 0.37d0
@@ -421,9 +422,11 @@ c      call prin2('rrhs=*',rrhs,24)
         alpha(i) = 0
         beta(i) = 0
       enddo
+
+      allocate(dV(3,3,npts))
  
       call biot_savart(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,xyz_out,dipvec,V)
+     1   srccoefs,srcvals,xyz_out,dipvec,V,dV)
 
 
 c      call poly_field(npatches,norders,ixyzs,iptype,npts,
@@ -1115,34 +1118,53 @@ c
 
 
       subroutine biot_savart(npatches,norders,ixyzs,iptype,
-     1   npts,srccoefs,srcvals,xyz0,l,V) 
+     1   npts,srccoefs,srcvals,xyz0,dipvec,V,dV) 
       implicit none
       integer  npatches,norders(npatches)
       integer  ixyzs(npatches+1),iptype(npatches)
       integer  npts
       real *8  srccoefs(9,npts),srcvals(12,npts)
-      real *8  V(3,npts),xyz0(3)
-      integer i
-      real *8 lcross(3,npts),l(3),nrm
+      real *8  V(3,npts),xyz0(3),dV(3,3,npts)
+      integer i,j,l
+      real *8 lcross(3,npts),dipvec(3),nrm
+      real *8 vtmp1(3),vtmp2(3),dxyz(3),r,wtmp1(3),ru,rv
+      real *8 rinv3,rinv5
 
       do i=1,npts
-        lcross(1,i) = l(2)*(srcvals(3,i)-xyz0(3))-
-     1     l(3)*(srcvals(2,i)-xyz0(2)) 
-        lcross(2,i) = l(3)*(srcvals(1,i)-xyz0(1))-
-     1      l(1)*(srcvals(3,i)-xyz0(3)) 
-        lcross(3,i) = l(1)*(srcvals(2,i)-xyz0(2))-
-     1     l(2)*(srcvals(1,i)-xyz0(1)) 
+        dxyz(1) = srcvals(1,i) - xyz0(1)
+        dxyz(2) = srcvals(2,i) - xyz0(2)
+        dxyz(3) = srcvals(3,i) - xyz0(3)
+        r  = sqrt(dxyz(1)**2 + dxyz(2)**2 + dxyz(3)**2)
+        rinv3 = 1.0d0/r**3
+        rinv5 = 1.0d0/r**5
+        wtmp1(1:3) = dxyz(1:3)/r**3
+        call cross_prod3d(dipvec,wtmp1,V(1,i))
+        do j=1,3
+          do l=1,3
+            dV(j,l,i) = -3*dxyz(j)*dxyz(l)*rinv5/2
+          enddo
+          dV(j,j,i) = dV(j,j,i) + 1.0d0/2*rinv3
+        enddo
       enddo
 
-
-      do i=1,npts
-        nrm = (srcvals(1,i)-xyz0(1))**2+(srcvals(2,i)-xyz0(2))**2
-     1           +(srcvals(3,i)-xyz0(3))**2
-        nrm = nrm**(1.5)
-        V(1,i) = lcross(1,i)/nrm
-        V(2,i) = lcross(2,i)/nrm
-        V(3,i) = lcross(3,i)/nrm 
-      enddo
+cc      do i=1,npts
+cc        lcross(1,i) = l(2)*(srcvals(3,i)-xyz0(3))-
+cc     1     l(3)*(srcvals(2,i)-xyz0(2)) 
+cc        lcross(2,i) = l(3)*(srcvals(1,i)-xyz0(1))-
+cc     1      l(1)*(srcvals(3,i)-xyz0(3)) 
+cc        lcross(3,i) = l(1)*(srcvals(2,i)-xyz0(2))-
+cc     1     l(2)*(srcvals(1,i)-xyz0(1)) 
+cc      enddo
+cc
+cc
+cc      do i=1,npts
+cc        nrm = (srcvals(1,i)-xyz0(1))**2+(srcvals(2,i)-xyz0(2))**2
+cc     1           +(srcvals(3,i)-xyz0(3))**2
+cc        nrm = nrm**(1.5)
+cc        V(1,i) = lcross(1,i)/nrm
+cc        V(2,i) = lcross(2,i)/nrm
+cc        V(3,i) = lcross(3,i)/nrm 
+cc      enddo
 
       return
       end
