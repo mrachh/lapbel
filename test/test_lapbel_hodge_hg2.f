@@ -490,9 +490,6 @@ c     scale F to norm 1
       Fnorm = erra
       call prin2('scaled L2 norm of tan proj F=*',erra,1)
 
-c      call surf_fun_error(3,npatches,norders,ixyzs,iptype,
-c     1     npts,rsc,dcoefs,errp,errm)
-
 
       call surf_vtk_plot_vec(npatches,norders,ixyzs,iptype,
      1  npts,srccoefs,srcvals,F,fname1,'F') 

@@ -95,7 +95,7 @@
       xyz_out(2) = 3.1d0
       xyz_out(3) = 20.1d0
 
-      igeomtype = 4
+      igeomtype = 2
 
       if(igeomtype.eq.1) then
         ipars(1) = 3
@@ -104,7 +104,7 @@
       endif
 
       if(igeomtype.eq.2) then
-        ipars(1) = 40
+        ipars(1) = 10
         ipars(2) = ipars(1)*3
         npatches = 2*ipars(1)*ipars(2)
         fname='stell.vtk'
@@ -125,39 +125,39 @@
       endif
       
 
-c      norder = 8 
-c      npols = (norder+1)*(norder+2)/2
-c
-c      npts = npatches*npols
-c      allocate(srcvals(12,npts),srccoefs(9,npts))
-      ifplot = 0
-c
-c      call setup_geom(igeomtype,norder,npatches,ipars, 
-c     1       srcvals,srccoefs,ifplot,fname)
-c
-c      allocate(norders(npatches),ixyzs(npatches+1),iptype(npatches))
+      norder = 7 
+      npols = (norder+1)*(norder+2)/2
 
-c      do i=1,npatches
-c        norders(i) = norder
-c        ixyzs(i) = 1 +(i-1)*npols
-c        iptype(i) = 1
-c      enddo
-c
-c      print *, 'npts=',npts
-c
-c      ixyzs(npatches+1) = 1+npols*npatches
-
-
-
-      fname = '../../geometries/genus240_o05_r01.go3'
-      
-      call open_gov3_geometry_mem(fname,npatches,npts)
-
-      call prinf('npatches=*',npatches,1)
-      call prinf('npts=*',npts,1)
-
+      npts = npatches*npols
       allocate(srcvals(12,npts),srccoefs(9,npts))
-      allocate(ixyzs(npatches+1),iptype(npatches),norders(npatches))
+      ifplot = 0
+
+      call setup_geom(igeomtype,norder,npatches,ipars, 
+     1       srcvals,srccoefs,ifplot,fname)
+
+      allocate(norders(npatches),ixyzs(npatches+1),iptype(npatches))
+
+      do i=1,npatches
+        norders(i) = norder
+        ixyzs(i) = 1 +(i-1)*npols
+        iptype(i) = 1
+      enddo
+
+      print *, 'npts=',npts
+
+      ixyzs(npatches+1) = 1+npols*npatches
+
+
+c
+c      fname = '../../geometries/genus240_o05_r01.go3'
+c      
+c      call open_gov3_geometry_mem(fname,npatches,npts)
+c
+c      call prinf('npatches=*',npatches,1)
+c      call prinf('npts=*',npts,1)
+c
+c      allocate(srcvals(12,npts),srccoefs(9,npts))
+c      allocate(ixyzs(npatches+1),iptype(npatches),norders(npatches))
       allocate(wts(npts))
       allocate(rsc(npatches))
 
@@ -168,28 +168,33 @@ C$OMP PARALLEL DO DEFAULT(SHARED)
 C$OMP END PARALLEL DO     
 
 
-      call open_gov3_geometry(fname,npatches,norders,ixyzs,
-     1   iptype,npts,srcvals,srccoefs,wts)
- 
-      fname1='../../../lbres/res/g240/hodge_tanproj_g240_o05_r01_'
-     1           //CHAR(d(1)+48)//
-     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
-      fname2='../../../lbres/res/g240/hodge_dfree_g240_o05_r01_'
-     1            //CHAR(d(1)+48)//
-     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
+c      call open_gov3_geometry(fname,npatches,norders,ixyzs,
+c     1   iptype,npts,srcvals,srccoefs,wts)
+c 
+c      fname1='../../../lbres/res/g240/hodge_tanproj_g240_o05_r01_'
+c     1           //CHAR(d(1)+48)//
+c     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
+c      fname2='../../../lbres/res/g240/hodge_dfree_g240_o05_r01_'
+c     1            //CHAR(d(1)+48)//
+c     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
+c
+c      fname3='../../../lbres/res/g240/hodge_cfree_g240_o05_r01_'
+c     1                 //CHAR(d(1)+48)//
+c     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
+c
+c      fname4='../../../lbres/res/g240/hodge_harm_g240_o05_r01_'
+c     1              //CHAR(d(1)+48)//
+c     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
+c
+c      fname5='../../../lbres/res/g240/hodge_geo_g240_o05_r01_'
+c     1               //CHAR(d(1)+48)//
+c     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
 
-      fname3='../../../lbres/res/g240/hodge_cfree_g240_o05_r01_'
-     1                 //CHAR(d(1)+48)//
-     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
-
-      fname4='../../../lbres/res/g240/hodge_harm_g240_o05_r01_'
-     1              //CHAR(d(1)+48)//
-     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
-
-      fname5='../../../lbres/res/g240/hodge_geo_g240_o05_r01_'
-     1               //CHAR(d(1)+48)//
-     1        '_'//CHAR(d(2)+48)//'_'//CHAR(d(3)+48)//'.vtk'
-
+      fname1 = 'tmp1.vtk'
+      fname2 = 'tmp2.vtk'
+      fname3 = 'tmp3.vtk'
+      fname4 = 'tmp4.vtk'
+      fname5 = 'tmp5.vtk'
 
       print *, 'F1:', fname1
       print *, 'F2:', fname2
@@ -259,11 +264,11 @@ C$OMP END PARALLEL DO
 c
 c    find near quadrature correction interactions
 c
-      call findnearmem(cms,npatches,rad_near,targs,npts,nnz)
+      call findnearmem(cms,npatches,rad_near,3,targs,npts,nnz)
 
       allocate(row_ptr(npts+1),col_ind(nnz))
       
-      call findnear(cms,npatches,rad_near,targs,npts,row_ptr, 
+      call findnear(cms,npatches,rad_near,3,targs,npts,row_ptr, 
      1        col_ind)
 
       allocate(iquad(nnz+1)) 
@@ -399,12 +404,12 @@ c      call prin2('rrhs=*',rrhs,24)
         beta(i) = 0
       enddo
  
-c      call biot_savart(npatches,norders,ixyzs,iptype,npts,
-c     1   srccoefs,srcvals,V)
+      call biot_savart(npatches,norders,ixyzs,iptype,npts,
+     1   srccoefs,srcvals,V)
 
 
-      call poly_field(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,d,V)
+c      call poly_field(npatches,norders,ixyzs,iptype,npts,
+c     1   srccoefs,srcvals,d,V)
 
       print *, 'poly field call done'
 
@@ -490,9 +495,6 @@ c     scale F to norm 1
       Fnorm = erra
       call prin2('scaled L2 norm of tan proj F=*',erra,1)
 
-c      call surf_fun_error(3,npatches,norders,ixyzs,iptype,
-c     1     npts,rsc,dcoefs,errp,errm)
-
 
       call surf_vtk_plot_vec(npatches,norders,ixyzs,iptype,
      1  npts,srccoefs,srcvals,F,fname1,'F') 
@@ -572,6 +574,7 @@ c    Surface integral should be zero
        
 
 200      eps_gmres = 1.0d-7
+      call prin2('rrhs1=*',rrhs1,24)
       call lap_bel_solver2fast(npatches,norders,ixyzs,iptype,
      1       npts,srccoefs,
      1  srcvals,eps,numit,rrhs1,eps_gmres,niter,errs,rres,sigma) 
