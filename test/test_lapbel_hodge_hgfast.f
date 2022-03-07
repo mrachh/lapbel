@@ -96,7 +96,7 @@
       xyz_out(2) = 3.1d0
       xyz_out(3) = 20.1d0
 
-      igeomtype = 4
+      igeomtype = 2
 
       if(igeomtype.eq.1) then
         ipars(1) = 3
@@ -105,7 +105,7 @@
       endif
 
       if(igeomtype.eq.2) then
-        ipars(1) = 40
+        ipars(1) = 10
         ipars(2) = ipars(1)*3
         npatches = 2*ipars(1)*ipars(2)
         fname='stell.vtk'
@@ -245,7 +245,7 @@ c
         rrhs(i) = real(rhs(i))
       enddo
 
-      eps = 0.51d-10
+      eps = 0.51d-7
 
 
 c
@@ -422,12 +422,12 @@ c      call prin2('rrhs=*',rrhs,24)
         beta(i) = 0
       enddo
  
-      call biot_savart(npatches,norders,ixyzs,iptype,npts,
-     1   srccoefs,srcvals,xyz_out,dipvec,V)
+c      call biot_savart(npatches,norders,ixyzs,iptype,npts,
+c     1   srccoefs,srcvals,xyz_out,dipvec,V)
 
 
-c      call poly_field(npatches,norders,ixyzs,iptype,npts,
-c     1   srccoefs,srcvals,d,V)
+      call poly_field(npatches,norders,ixyzs,iptype,npts,
+     1   srccoefs,srcvals,d,V)
 
 
       title = 'u(x)'
@@ -583,7 +583,7 @@ c    Surface integral should be zero
 
        
 
-      eps_gmres = 1.0d-14
+      eps_gmres = 1.0d-7
       call lap_bel_solver2fast(npatches,norders,ixyzs,iptype,
      1        npts,srccoefs,
      1  srcvals,eps,numit,rrhs1,eps_gmres,niter,errs,rres,sigma) 
@@ -618,7 +618,7 @@ c    Surface integral should be zero
 
 
 
-      eps_gmres = 1.0d-14
+      eps_gmres = 1.0d-7
       call lap_bel_solver2fast(npatches,norders,ixyzs,iptype,
      1      npts,srccoefs,
      1  srcvals,eps,numit,rrhs2,eps_gmres,niter,errs,rres,sigma) 

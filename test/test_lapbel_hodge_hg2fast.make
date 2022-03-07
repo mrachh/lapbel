@@ -1,6 +1,6 @@
 EXEC = int2-surflap
-#HOST = gcc
-HOST = gcc-openmp
+HOST = gcc
+#HOST = gcc-openmp
 #HOST = intel
 #HOST = intel-ompenmp
 
@@ -45,6 +45,7 @@ endif
 
 SURF=../src/surface_routs
 LBW=../src/lapbel_wrap
+COM=../src/common
 
 .PHONY: all clean 
 
@@ -53,7 +54,7 @@ OBJECTS =  test_lapbel_hodge_hg2fast.o \
     $(SURF)/surf_routs.o \
     $(LBW)/lapbel2fast.o \
     $(LBW)/lapbel_kernels.o \
-    $(LBW)/legetens.o
+    $(COM)/legetens.o
 
 
 #

@@ -610,6 +610,7 @@ c
       integer nss,ii,l,npover
 
       integer nd,ntarg0
+      integer ier,iper
 
       real *8 ttot,done,pi,over4pi
 
@@ -689,10 +690,11 @@ c       call the fmm
 c
 c      print *, "Calling FMM"
 
-
+      iper = 0
+      ier = 0
       call lfmm3d(nd,eps,ns,sources,ifcharge,charges,
-     1  ifdipole,dipvec,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
-     1  pot1,grad1,tmp)
+     1  ifdipole,dipvec,iper,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
+     1  pot1,grad1,tmp,ier)
 
 c      print *, "FMM call done"
 
@@ -815,6 +817,7 @@ C$OMP$PRIVATE(dtmp2,nss,l,jstart,ii,val,npover,vgrad)
         pot1(i) = pot1(i) - val
         deallocate(srctmp2,dtmp2)
       enddo
+      call prin2('pot1=*',pot1,24)
 
 c      print *, "Subtraction done"
 
@@ -872,8 +875,9 @@ c      print *, "Calling FMM"
 
 
       call lfmm3d(nd,eps,ns,sources,ifcharge,charges,
-     1  ifdipole,dipvec,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
-     1  pot2,tmp,tmp)
+     1  ifdipole,dipvec,iper,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
+     1  pot2,tmp,tmp,ier)
+      call prin2('pot2=*',pot2,24)
 
 c      print *, "FMM call done"
 
@@ -941,6 +945,7 @@ C$OMP$PRIVATE(dtmp2,nss,l,jstart,ii,val,npover,vgrad)
         pot2(i) = pot2(i) - val
         deallocate(srctmp2,dtmp2)
       enddo
+      call prin2('pot22=*',pot2,24)
 
 c      print *, "Subtraction done"
 
@@ -1003,8 +1008,8 @@ c      print *, "Calling FMM"
 
 
       call lfmm3d(nd,eps,ns,sources,ifcharge,charges,
-     1  ifdipole,dipvec,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
-     1  pot1,grad2,hess1)
+     1  ifdipole,dipvec,iper,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
+     1  pot1,grad2,hess1,ier)
 
 c      print *, "FMM call done"
 
@@ -1105,6 +1110,7 @@ C$OMP$PRIVATE(ctmp2,nss,l,jstart,ii,val,npover,vgrad,nvgrad)
         pot3(i) = normalgrad2(i) - nvgrad
         deallocate(srctmp2,ctmp2)
       enddo
+      call prin2('pot3=*',pot3,24)
 
 c      print *, "Subtraction done"
 
@@ -1185,6 +1191,7 @@ C$OMP$PRIVATE(ctmp2,nss,l,jstart,ii,val,npover,vgrad)
         pot1(i) = pot1(i) - val
         deallocate(srctmp2,ctmp2)
       enddo
+      call prin2('pot1=*',pot1,24)
 
 c      print *, "Subtraction done"
 
@@ -1203,6 +1210,8 @@ C$OMP PARALLEL DO DEFAULT(SHARED)
         pot4(i) = rint 
       enddo
 C$OMP END PARALLEL DO
+
+      call prin2('pot4=*',pot4,24)
 
 c     pot4 has WS
 
@@ -1291,6 +1300,8 @@ C$OMP$PRIVATE(nvgrad,nvhess)
         nvgrad = vgrad(1)*srcvals(10,i) +
      1           vgrad(2)*srcvals(11,i) +
      1           vgrad(3)*srcvals(12,i)
+        vgrad = 0
+        vhess = 0
  
         call l3ddirectch(nd,srctmp2,ctmp2,
      1        nss,targvals(1,i),ntarg0,val,vgrad,vhess,thresh)
@@ -1313,6 +1324,7 @@ C$OMP$PRIVATE(nvgrad,nvhess)
         pot5(i) = ngradphess(i) - nvgrad - nvhess
         deallocate(srctmp2,ctmp2,dtmp2)
       enddo
+      call prin2('pot5=*',pot5,24)
 
 c      call prin2('pot5=*',pot1,24)
 
@@ -1328,6 +1340,7 @@ C$OMP END PARALLEL DO
 
 c    pot1(i) has (S''+D')+2HS'-WS
 
+      call prin2('pot1=*',pot1,24)
 
 c     Now calculate S((S''+D')+2HS'-WS)
       call oversample_fun_surf(1,npatches,norders,ixyzs,iptype, 
@@ -1378,8 +1391,8 @@ c      print *, "Calling FMM"
 
 
       call lfmm3d(nd,eps,ns,sources,ifcharge,charges,
-     1  ifdipole,dipvec,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
-     1  pot6,tmp,tmp)
+     1  ifdipole,dipvec,iper,ifpgh,tmp,tmp,tmp,npts,targvals,ifpghtarg,
+     1  pot6,tmp,tmp,ier)
 
 c      print *, "FMM call done"
 
@@ -1463,7 +1476,9 @@ c        pot(i) = pot4(i)
       enddo
 C$OMP END PARALLEL DO
 
-
+      call prin2('pot=*',pot,24)
+      call prin2('pot2=*',pot2,24)
+      call prin2('pot6=*',pot6,24)
 
       return
       end
@@ -1798,6 +1813,7 @@ c
       enddo
 
       svec(1) = rb
+      print *, "rb=",rb
 
       do it=1,numit
         it1 = it + 1
@@ -1815,10 +1831,13 @@ c
      3    vmat(1,it),novers,npts_over,ixyzso,srcover,wover,wtmp)
 
         do k=1,it
+          print *, "k=",k
           hmat(k,it) = 0
           do j=1,npts
             hmat(k,it) = hmat(k,it) + wtmp(j)*vmat(j,k)
           enddo
+
+          print *, "hmat(k,it)=",hmat(k,it)
 
           do j=1,npts
             wtmp(j) = wtmp(j)-hmat(k,it)*vmat(j,k)
@@ -1831,6 +1850,7 @@ c
           wnrm2 = wnrm2 + abs(wtmp(j))**2
         enddo
         wnrm2 = sqrt(wnrm2)
+        print *, "wnrm2=",wnrm2
 
         do j=1,npts
           vmat(j,it1) = wtmp(j)/wnrm2
