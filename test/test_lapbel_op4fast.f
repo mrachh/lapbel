@@ -75,10 +75,10 @@ c      call omp_set_num_threads( 4 )
 
       
 
-      igeomtype = 4
+      igeomtype = 1
 
       if(igeomtype.eq.1) then
-        ipars(1) = 3
+        ipars(1) = 2 
         npatches=12*(4**ipars(1))
         fname='sphere.vtk'
       endif
@@ -155,7 +155,7 @@ c      stop
 c
 c       define rhs to be one of the ynm's
 c
-      nn = 4
+      nn = 2
       mm = 1
       nmax = nn
       allocate(w(0:nmax,0:nmax))
@@ -210,11 +210,11 @@ C$OMP END PARALLEL DO
 c
 c    find near quadrature correction interactions
 c
-      call findnearmem(cms,npatches,rad_near,targs,npts,nnz)
+      call findnearmem(cms,npatches,rad_near,3,targs,npts,nnz)
 
       allocate(row_ptr(npts+1),col_ind(nnz))
       
-      call findnear(cms,npatches,rad_near,targs,npts,row_ptr, 
+      call findnear(cms,npatches,rad_near,3,targs,npts,row_ptr, 
      1        col_ind)
 
       allocate(iquad(nnz+1)) 
@@ -280,10 +280,16 @@ C$OMP END PARALLEL DO
       call prinf('entering layer potential eval*',i,0)
       call prinf('npts=*',npts,1)
 
-      call lpcomp_lap_bel_addsub2fast(npatches,norders,ixyzs,
+      call cpu_time(t1)
+C$      t1 = omp_get_wtime()      
+
+      call lpcomp_lap_bel_addsub3fast(npatches,norders,ixyzs,
      1      iptype,npts,
      1  srccoefs,srcvals,eps,nnz,row_ptr,col_ind,iquad,nquad,wnear,
      2  rrhs,novers,npts_over,ixyzso,srcover,wover,pot)
+
+      call cpu_time(t2)
+C$      t2 = omp_get_wtime()     
 
       erra = 0
       ra = 0
@@ -298,6 +304,8 @@ C$OMP END PARALLEL DO
       enddo
       erra = sqrt(erra/ra)
       call prin2('error in application of layer potential=*',erra,1)
+      call prin2('time taken for evaluating layer potential=*',t2-t1,1)
+      stop
 
 c      call prin2('pot=*',pot,24)
 c      call prin2('rrhs=*',rrhs,24)
