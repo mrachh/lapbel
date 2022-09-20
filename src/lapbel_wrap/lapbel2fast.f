@@ -648,9 +648,11 @@ c
 
       call oversample_fun_surf(1,npatches,norders,ixyzs,iptype, 
      1    npts,sigma,novers,ixyzso,ns,sigmaover)
+
       nmax = 0
       call get_near_corr_max(ntarg,row_ptr,nnz,col_ind,npatches,
      1   ixyzso,nmax)
+      print *, "nmax=",nmax
       allocate(srctmp2(3,nmax),ctmp2(nmax),dtmp2(3,nmax))
 
       ra = 0
@@ -815,7 +817,6 @@ C$OMP$PRIVATE(dtmp2,nss,l,jstart,ii,val,npover)
       enddo
 
 c      print *, "Subtraction done"
-
 
 c      pot1 is calculating double layer poential now. Use it as density
 c      
@@ -1619,13 +1620,14 @@ c
 
       ns = nptso
       done = 1.0d0
-      pi = atan(done)*4
-      over4pi = 1.0d0/4/pi
+      pi = atan(done)*4.0d0
+      over4pi = 1.0d0/4.0d0/pi
 
       nmax = 0
       call get_near_corr_max(npts,row_ptr,nnz,col_ind,npatches,
      1   ixyzso,nmax)
       allocate(srctmp2(3,nmax),ctmp2(2,nmax),dtmp2(2,3,nmax))
+      print *, "nmax=",nmax
 
       nd = 2
       allocate(abc(2,npts),charges_tmp(2,ns),dipvec_tmp(2,3,ns))
@@ -1674,9 +1676,8 @@ c  Set the charge and dipole densities for evaluating
 c   
 c
 c     abc(1,:) = D[\sigma]
-c     abc(2,:) =  ((S''+D')+2HS'-WS)[\sigma]
+c     abc(2,:) =  ((S''+D')-2HS'-WS)[\sigma]
 c
-
 C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i)
       do i=1,ns
         charges_tmp(1,i) = sigmaover(i)*whtsover(i)*over4pi
@@ -1708,6 +1709,7 @@ c
       ifpghtarg = 3
       ifdipole = 1
       ifcharge = 1
+
 
       call lfmm3d(nd,eps,ns,sources,ifcharge,charges_tmp,
      1  ifdipole,dipvec_tmp,iper,ifpgh,tmp,tmp,tmp,npts,targvals,
@@ -1747,7 +1749,6 @@ C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i)
      1        hess_tmp(1,3,i)*srcvals(12,i)*srcvals(12,i) 
       enddo
 C$OMP END PARALLEL DO     
-
 c
 c  Fix quadrature corrections
 c
@@ -1757,12 +1758,12 @@ C$      t1 = omp_get_wtime()
 
 C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,jpatch,jquadstart)
 C$OMP$PRIVATE(jstart,npols,l)
-      do i=1,ntarg
+      do i=1,npts
         do j=row_ptr(i),row_ptr(i+1)-1
           jpatch = col_ind(j)
           npols = ixyzs(jpatch+1)-ixyzs(jpatch)
           jquadstart = iquad(j)
-          jstart = ixyzs(jpatch) 
+          jstart = ixyzs(jpatch)
           do l=1,npols
             pot1(i) = pot1(i) + 
      1          wnear(jquadstart+l-1,1)*sigma(jstart+l-1)
@@ -1776,7 +1777,6 @@ C$OMP$PRIVATE(jstart,npols,l)
         enddo
       enddo
 C$OMP END PARALLEL DO
-
       call cpu_time(t2)
 C$      t2 = omp_get_wtime()      
 
@@ -1823,8 +1823,10 @@ C$OMP$PRIVATE(ctmp2,dtmp2,nss,l,jstart,ii,val,vgrad,vhess,npover)
         vgrad(1:2,1:3) = 0
         vhess(1:2,1:6) = 0
 
+
         call l3ddirectcdh(nd,srctmp2,ctmp2,dtmp2,
      1        nss,targvals(1,i),ntarg0,val,vgrad,vhess,thresh)
+       
         pot1(i) = pot1(i) - val(1)
         abc(1,i) = abc(1,i) - val(2)
         pot2(i) = pot2(i) - vgrad(1,1)*srcvals(10,i) -
@@ -1871,8 +1873,6 @@ c
 C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i)
       do i=1,npts
         abc(2,i) = -(pot3(i) + 2*curv(i)*pot2(i) - ra/rsurf)
-
-        if(i.le.24) print *, sigma(i),pot1(i)/sigma(i),abc(1,i)/sigma(i)
       enddo
 C$OMP END PARALLEL DO
 
@@ -1929,7 +1929,7 @@ C$      t1 = omp_get_wtime()
 
 C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,jpatch,jquadstart)
 C$OMP$PRIVATE(jstart,l,npols)
-      do i=1,ntarg
+      do i=1,npts
         do j=row_ptr(i),row_ptr(i+1)-1
           jpatch = col_ind(j)
           npols = ixyzs(jpatch+1)-ixyzs(jpatch)

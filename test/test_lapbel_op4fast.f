@@ -18,7 +18,7 @@
       real *8, allocatable :: sigma(:), pot(:),pot1(:),rrhs(:)
       real *8, allocatable :: errs(:),rrhs2(:),u(:),rrhs2t(:)
 
-      real *8, allocatable :: wnear(:),rrhs1(:)
+      real *8, allocatable :: wnear(:,:),rrhs1(:)
       real *8, allocatable :: targs(:,:)
       real *8, allocatable :: cms(:,:),rads(:),rad_near(:)
       real *8, allocatable :: srcover(:,:),wover(:)
@@ -78,7 +78,7 @@ c      call omp_set_num_threads( 4 )
       igeomtype = 1
 
       if(igeomtype.eq.1) then
-        ipars(1) = 2 
+        ipars(1) = 5 
         npatches=12*(4**ipars(1))
         fname='sphere.vtk'
       endif
@@ -119,7 +119,6 @@ c      write ( *, * ) 'Elapsed time = ', finish-start
 c      stop
 
 
-      start = omp_get_wtime()
       norder = 4
       fname = 'op4_tor_20_10_4'
       fname1 = 'op4_tor_20_10_4_psi.vtk'
@@ -155,7 +154,7 @@ c      stop
 c
 c       define rhs to be one of the ynm's
 c
-      nn = 2
+      nn = 1
       mm = 1
       nmax = nn
       allocate(w(0:nmax,0:nmax))
@@ -190,10 +189,6 @@ C$OMP PARALLEL DO DEFAULT(SHARED)
 C$OMP END PARALLEL DO     
 
 
-C$OMP PARALLEL  PRIVATE(tid) 
-      tid = omp_get_thread_num()
-      print *, "hello from thread", tid
-C$OMP END PARALLEL     
 
 
       ntarg = npts
@@ -255,11 +250,14 @@ c
 c   compute near quadrature correction
 c
       nquad = iquad(nnz+1)-1
-      allocate(wnear(4*nquad))
+      allocate(wnear(nquad,4))
       
 C$OMP PARALLEL DO DEFAULT(SHARED)      
-      do i=1,4*nquad
-        wnear(i) = 0
+      do i=1,nquad
+        wnear(i,1) = 0
+        wnear(i,2) = 0
+        wnear(i,3) = 0
+        wnear(i,4) = 0
       enddo
 C$OMP END PARALLEL DO    
 
@@ -280,13 +278,14 @@ C$OMP END PARALLEL DO
       call prinf('entering layer potential eval*',i,0)
       call prinf('npts=*',npts,1)
 
+
       call cpu_time(t1)
 C$      t1 = omp_get_wtime()      
 
-      call lpcomp_lap_bel_addsub3fast(npatches,norders,ixyzs,
+      call lpcomp_lap_bel_addsub2fast(npatches,norders,ixyzs,
      1      iptype,npts,
-     1  srccoefs,srcvals,eps,nnz,row_ptr,col_ind,iquad,nquad,wnear,
-     2  rrhs,novers,npts_over,ixyzso,srcover,wover,pot)
+     1      srccoefs,srcvals,eps,nnz,row_ptr,col_ind,iquad,nquad,wnear,
+     2      rrhs,novers,npts_over,ixyzso,srcover,wover,pot)
 
       call cpu_time(t2)
 C$      t2 = omp_get_wtime()     
@@ -408,7 +407,7 @@ c    Subtract Wg/area to make integral zero
 
       call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
      1  iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
-     2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(0*nquad+1),
+     2  dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(1,1),
      3  sigma,novers,npts_over,ixyzso,srcover,wover,u)
  
 c    Subtract const from u to make integral zero
@@ -436,7 +435,6 @@ c    Subtract const from u to make integral zero
       enddo
       erra = sqrt(erra/ra)
       call prin2('error in lapbel solution =*',erra,1)
-      finish = omp_get_wtime()
       call prin2('time for execution=*',finish-start, 1)
 
       stop
