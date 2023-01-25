@@ -4,7 +4,7 @@
 
       norder_start = 4
       norder_end = 6
-      do iref=4,4
+      do iref=1,1
         do norder0 = norder_start,norder_end,2
           do irep0=1,3,2
             call solve_sphere(iref,norder0,irep0)
@@ -83,8 +83,8 @@ c
       allocate(srcvals(12,npts),srccoefs(9,npts))
       ifplot = 0
 
-      if(norder.eq.4.or.norder.eq.5) eps = 0.51d-6
-      if(norder.eq.6.or.norder.eq.7) eps = 0.51d-8
+      if(norder.eq.4.or.norder.eq.5) eps = 0.51d-2
+      if(norder.eq.6.or.norder.eq.7) eps = 0.51d-3
       if(norder.ge.8) eps = 0.51d-10
       
       eps_gmres = eps
@@ -137,11 +137,17 @@ c
           coef(i,j) = tmp1 + ima*tmp2
         enddo
       enddo
+
       
       close(34)
 
 
       do i=1,npts
+        pot_ex(i) = 0
+        rhs(i) = 0
+        sigma_ex(i) = 0
+        u_mv_ex(i) = 0
+        u_ex(i) = 0
         do j=1,nmax
           do l=0,j
             rtmp = real(zynm(j,l,i)*coef(j,l))
@@ -167,6 +173,7 @@ c
         u(i) = 0
         sigma(i) = 0
       enddo
+
 c
 c   first test matvec
 c
