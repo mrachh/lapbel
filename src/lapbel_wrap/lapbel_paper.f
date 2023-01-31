@@ -2257,7 +2257,7 @@ c
      1    iptype,npts,srccoefs,srcvals,eps,sigma,irep,
      2    pot,u,t_mv_fmm)
 c
-c  This subroutine solves the Laplace Beltrami problem
+c  This subroutine evaluates the Laplace Beltrami problem
 c  using one of the following three integral representations:
 c
 c  irep=1, s_lap_s: pot = S (\Delta_{\Gamma} + W)S[\sigma], where
@@ -2268,8 +2268,6 @@ c            used
 c  irep=3, lap_s2: pot  = (\Delta_{\Gamma} + W) S^2 [\sigma], where
 c                    \Delta_{\Gamma}S^2 is expanded out
 c                    using Calderon identities, u = S^2[\sigma]
-c
-c  The linear system is solved iteratively using GMRES.
 c
 c  Input arguments:
 c 
@@ -2315,7 +2313,7 @@ c        the potential pot above
 c    - u: real *8 (npts)
 c        the potential u above
 c    - t_mv_fmm: real *8
-cn       time taken just for the fmm part
+c        time taken just for the fmm part
 c        
 c
       implicit none
@@ -2333,8 +2331,6 @@ c
       integer, allocatable :: ipatch_id(:)
       real *8, allocatable :: uvs_targ(:,:)
       integer ndtarg,ntarg
-
-
 
       integer norder,npols
       integer nover,npolso,nptso
@@ -2596,10 +2592,11 @@ c
       return
       end
 c
-
-
-
-
+c
+c
+c
+c
+c
 
       subroutine lap_bel_solver(npatches,norders,ixyzs,
      1    iptype,npts,srccoefs,srcvals,eps,numit,rhs,irep,
@@ -3124,4 +3121,855 @@ c
 c
       return
       end
+c
+c
+c
+c
+c
+
+      subroutine lap_bel_solver_wquad(npatches,norders,ixyzs,
+     1    iptype,npts,srccoefs,srcvals,eps,numit,rhs,irep,
+     2    nnz,row_ptr,col_ind,iquad,ndquad,nquad,wnear,
+     3    eps_gmres,niter,errs,rres,soln,u)
+
+c
+c  This subroutine solves the Laplace Beltrami problem
+c  using one of the following three integral representations:
+c
+c  irep=1, s_lap_s: S (\Delta_{\Gamma} + W)S[\sigma] = S[f], where
+c                      S \Delta_{\Gamma}S [\sigma] is expanded out using 
+c                      Calderon identities
+c  irep=2, s_lap_s_noc: Same as above but no Calderon identities
+c            used
+c  irep=3, lap_s2: \Delta_{\Gamma} + W S^2 [\sigma], where
+c                    \Delta_{\Gamma}S^2 is expanded out
+c                    using Calderon identities
+c
+c  The linear system is solved iteratively using GMRES.
+c
+c  Input arguments:
+c 
+c    - npatches: integer
+c        number of patches
+c    - norders: integer(npatches)
+c        order of discretization on each patch 
+c    - ixyzs: integer(npatches+1)
+c        ixyzs(i) denotes the starting location in srccoefs,
+c        and srcvals array corresponding to patch i
+c    - iptype: integer(npatches)
+c        type of patch
+c        iptype = 1, triangular patch discretized using RV nodes
+c    - npts: integer
+c        total number of discretization points on the boundary
+c    - srccoefs: real *8 (9,npts)
+c        koornwinder expansion coefficients of xyz, dxyz/du,
+c        and dxyz/dv on each patch. 
+c        For each point 
+c          * srccoefs(1:3,i) is xyz info
+c          * srccoefs(4:6,i) is dxyz/du info
+c          * srccoefs(7:9,i) is dxyz/dv info
+c    - srcvals: real *8 (12,npts)
+c        xyz(u,v) and derivative info sampled at the 
+c        discretization nodes on the surface
+c          * srcvals(1:3,i) - xyz info
+c          * srcvals(4:6,i) - dxyz/du info
+c          * srcvals(7:9,i) - dxyz/dv info
+c          * srcvals(10:12,i) - normals info
+c    - eps: real *8
+c        precision requested
+c    - numit: integer
+c        maximum number of GMRES iterations
+c    - rhs: real *8 (npts)
+c        the surface data f
+c    - irep: integer
+c        representation for solving the Laplace Beltrami problem
+c        * irep = 1, s_lap_s
+c        * irep = 2, s_lap_s_noc
+c        * irep = 3, lap_s2
+c    - nnz: integer
+c        number of source patch-> target interactions in the near field
+c    - row_ptr: integer(npts+1)
+c        row_ptr(i) is the pointer
+c        to col_ind array where list of relevant source patches
+c        for target i start
+c    - col_ind: integer (nnz)
+c        list of source patches relevant for all targets, sorted
+c        by the target number
+c    - iquad: integer(nnz+1)
+c        location in wnear_ij array where quadrature for col_ind(i)
+c        starts for a single kernel. In this case the different kernels
+c        are matrix entries are located at (m-1)*nquad+iquad(i), where
+c        m is the kernel number
+c    - ndquad: integer
+c        trailing dimension of quadrature correction array
+c    - nquad: integer
+c        number of near field entries corresponding to each source target
+c        pair. The size of wnear is (nquad,4) since there are 4 kernels
+c        per source target pair
+c    - wnear: real *8(nquad,ndquad)
+c        The desired near field quadrature
+c    - eps_gmres: real *8
+c        relative residual tolerance for GMRES
+c
+c  Output arguments:
+c    - niter: integer
+c        number of GMRES iterations used
+c    - errs: real *8 (niter+1)
+c        On input must be of size (numit+1), gmres residual
+c        as a function of iteration number
+c    - rres: real *8
+c        relative residual to which the linear system is solved
+c    - soln: real *8 (npts)
+c        the solution sigma
+c    - u: real *8 (npts)
+c        The solution to the Laplace Beltrami problem
+c
+      implicit none
+
+      integer, intent(in) :: npatches,npts
+      integer, intent(in) :: norders(npatches),ixyzs(npatches+1)
+      integer, intent(in) :: iptype(npatches)
+      integer, intent(in) :: numit,irep
+      real *8, intent(in) :: srccoefs(9,npts),srcvals(12,npts),eps
+      real *8, intent(in) :: eps_gmres
+      real *8, intent(in) :: rhs(npts)
+
+      integer, intent(in) :: nnz,ndquad,nquad
+      integer, intent(in) :: row_ptr(npts+1),col_ind(nnz),iquad(nnz+1)
+      real *8, intent(in) :: wnear(nquad,ndquad)
+
+      real *8, intent(out) :: soln(npts),u(npts)
+      real *8, intent(out) :: errs(numit+1)
+      real *8, intent(out) :: rres
+      integer, intent(out) ::  niter
+      
+
+      real *8, allocatable :: rhs_use(:)
+      real *8, allocatable :: targs(:,:)
+      integer, allocatable :: ipatch_id(:)
+      real *8, allocatable :: uvs_targ(:,:)
+      integer ndtarg,ntarg
+
+
+
+      integer norder,npols
+      integer nover,npolso,nptso
+      real *8, allocatable :: s_one(:),dens_one(:)
+
+      real *8, allocatable :: srcover(:,:),wover(:)
+      integer, allocatable :: ixyzso(:),novers(:)
+
+      real *8, allocatable :: cms(:,:),rads(:),rad_near(:) 
+
+      integer i,j,jpatch,jquadstart,jstart
+
+      integer ipars
+      complex *16 zpars
+      real *8 timeinfo(10),t1,t2,omp_get_wtime
+
+
+      real *8 ttot,done,pi
+      real *8 rfac,rfac0
+      real *8 dpars(2),erra,ra
+      integer iptype_avg,norder_avg
+      integer ikerorder, iquadtype,npts_over
+
+c
+c
+c       gmres variables
+c
+      real *8 did,dtmp
+      real *8 rb,wnrm2
+      integer it,iind,it1,k,l
+      real *8 rmyerr
+      real *8 temp
+      real *8, allocatable :: vmat(:,:),hmat(:,:)
+      real *8, allocatable :: cs(:),sn(:)
+      real *8, allocatable :: svec(:),yvec(:),wtmp(:)
+      real *8, allocatable :: wts(:)
+
+      complex *16 ztmp
+
+
+      allocate(vmat(npts,numit+1),hmat(numit,numit))
+      allocate(cs(numit),sn(numit))
+      allocate(wtmp(npts),svec(numit+1),yvec(numit+1))
+
+
+      done = 1
+      pi = atan(done)*4
+
+      if(irep.lt.1.or.irep.gt.3) then
+        print *, "invalid argument for irep, returning"
+        return
+      endif
+
+
+c
+c
+c        setup targets as on surface discretization points
+c 
+      ndtarg = 3
+      ntarg = npts
+      allocate(targs(ndtarg,npts),uvs_targ(2,ntarg),ipatch_id(ntarg))
+
+      allocate(rhs_use(npts))
+
+C$OMP PARALLEL DO DEFAULT(SHARED)
+      do i=1,ntarg
+        targs(1,i) = srcvals(1,i)
+        targs(2,i) = srcvals(2,i)
+        targs(3,i) = srcvals(3,i)
+        ipatch_id(i) = -1
+        uvs_targ(1,i) = 0
+        uvs_targ(2,i) = 0
+      enddo
+C$OMP END PARALLEL DO   
+
+
+c
+c    initialize patch_id and uv_targ for on surface targets
+c
+      call get_patch_id_uvs(npatches,norders,ixyzs,iptype,npts,
+     1  ipatch_id,uvs_targ)
+
+c
+c
+c
+      iptype_avg = floor(sum(iptype)/(npatches+0.0d0))
+      norder_avg = floor(sum(norders)/(npatches+0.0d0))
+
+      call get_rfacs(norder_avg,iptype_avg,rfac,rfac0)
+
+
+      allocate(cms(3,npatches),rads(npatches),rad_near(npatches))
+
+      call get_centroid_rads(npatches,norders,ixyzs,iptype,npts, 
+     1     srccoefs,cms,rads)
+
+C$OMP PARALLEL DO DEFAULT(SHARED) 
+      do i=1,npatches
+        rad_near(i) = rads(i)*rfac
+      enddo
+C$OMP END PARALLEL DO      
+
+c
+c    estimate oversampling for far-field, and oversample geometry
+c
+
+      allocate(novers(npatches),ixyzso(npatches+1))
+
+      print *, "beginning far order estimation"
+
+      ztmp = 0
+      ikerorder = 0
+      print *, eps
+
+      call get_far_order(eps,npatches,norders,ixyzs,iptype,cms,
+     1    rads,npts,srccoefs,ndtarg,npts,targs,ikerorder,ztmp,
+     2    nnz,row_ptr,col_ind,rfac,novers,ixyzso)
+
+      npts_over = ixyzso(npatches+1)-1
+      print *, "npts_over=",npts_over
+
+      allocate(srcover(12,npts_over),wover(npts_over))
+
+      call oversample_geom(npatches,norders,ixyzs,iptype,npts, 
+     1   srccoefs,srcvals,novers,ixyzso,npts_over,srcover)
+
+      allocate(wts(npts))
+
+      call get_qwts(npatches,norders,ixyzs,iptype,npts,
+     1        srcvals,wts)
+
+      call get_qwts(npatches,novers,ixyzso,iptype,npts_over,
+     1        srcover,wover)
+
+
+      print *, "Starting to generate right hand side for linear system"
+
+c
+c
+c     compute the right hand side S[f], if irep=1, or irep=2
+c     note that
+c
+      if(irep.eq.1.or.irep.eq.2) then
+        dpars(1) = 1.0d0
+        dpars(2) = 0
+        call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
+     1    iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
+     2    dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(1,1),
+     3    rhs,novers,npts_over,ixyzso,srcover,wover,rhs_use)
+      else
+        print  *, "here1"
+C$OMP PARALLEL DO DEFAULT(SHARED)
+        do i=1,npts
+          rhs_use(i) = rhs(i)
+        enddo
+C$OMP END PARALLEL DO
+      endif
+      print *, "Done generating right hand side for linear system"
+
+      if(irep.eq.2) then
+        allocate(s_one(npts),dens_one(npts))
+
+C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i)
+        do i=1,npts
+          dens_one(i) = 1.0d0
+        enddo
+C$OMP END PARALLEL DO
+
+        dpars(1) = 1.0d0
+        dpars(2) = 0
+        call lpcomp_lap_comb_dir_addsub(npatches,norders,ixyzs,
+     1    iptype,npts,srccoefs,srcvals,ndtarg,npts,targs,eps,
+     2    dpars,nnz,row_ptr,col_ind,iquad,nquad,wnear(1,1),
+     3    dens_one,novers,npts_over,ixyzso,srcover,wover,s_one)
+        
+
+      endif
+
+      print *, "Start gmres now"
+c
+c
+c     start gmres code here
+c
+c     NOTE: matrix equation should be of the form (z*I + K)x = y
+c       the identity scaling (z) is defined via did below,
+c       and K represents the action of the principal value 
+c       part of the matvec
+c
+
+C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i)
+      do i=1,npts
+        u(i) = 0
+      enddo
+C$OMP END PARALLEL DO
+
+
+      if(irep.eq.1.or.irep.eq.3) then
+        did = -0.25d0
+      else
+        did = 0
+      endif
+
+
+      niter=0
+
+c
+c      compute norm of right hand side and initialize v
+c 
+      rb = 0
+
+      do i=1,numit
+        cs(i) = 0
+        sn(i) = 0
+      enddo
+c
+      do i=1,npts
+        rb = rb + abs(rhs_use(i))**2*wts(i)
+      enddo
+      rb = sqrt(rb)
+
+      do i=1,npts
+        vmat(i,1) = rhs_use(i)/rb
+      enddo
+
+      svec(1) = rb
+
+      do it=1,numit
+        it1 = it + 1
+
+c
+c        NOTE:
+c        replace this routine by appropriate layer potential
+c        evaluation routine  
+c
+        if(irep.eq.1) then
+          call lpcomp_lap_bel_s_lap_s_addsub(npatches,norders,ixyzs,
+     1     iptype,npts,srccoefs,srcvals,eps,nnz,row_ptr,col_ind,iquad,
+     2     nquad,wnear,vmat(1,it),novers,npts_over,ixyzso,
+     3     srcover,wover,wtmp,u)
+        endif
+        if(irep.eq.2) then
+          call lpcomp_lap_bel_s_lap_s_noc_addsub(npatches,norders,ixyzs,
+     1     iptype,npts,srccoefs,srcvals,eps,nnz,row_ptr,col_ind,iquad,
+     2     nquad,wnear,vmat(1,it),novers,npts_over,ixyzso,
+     3     srcover,wover,s_one,wtmp,u)
+        endif
+        if(irep.eq.3) then
+          call lpcomp_lap_bel_lap_s2_addsub(npatches,norders,ixyzs,
+     1     iptype,npts,srccoefs,srcvals,eps,nnz,row_ptr,col_ind,iquad,
+     2     nquad,wnear,vmat(1,it),novers,npts_over,ixyzso,
+     3     srcover,wover,wtmp,u)
+        endif
+
+
+        do k=1,it
+          hmat(k,it) = 0
+          do j=1,npts
+            hmat(k,it) = hmat(k,it) + wtmp(j)*vmat(j,k)*wts(j)
+          enddo
+
+          do j=1,npts
+            wtmp(j) = wtmp(j)-hmat(k,it)*vmat(j,k)
+          enddo
+        enddo
+          
+        hmat(it,it) = hmat(it,it)+did
+        wnrm2 = 0
+        do j=1,npts
+          wnrm2 = wnrm2 + abs(wtmp(j))**2*wts(j)
+        enddo
+        wnrm2 = sqrt(wnrm2)
+
+        do j=1,npts
+          vmat(j,it1) = wtmp(j)/wnrm2
+        enddo
+
+        do k=1,it-1
+          temp = cs(k)*hmat(k,it)+sn(k)*hmat(k+1,it)
+          hmat(k+1,it) = -sn(k)*hmat(k,it)+cs(k)*hmat(k+1,it)
+          hmat(k,it) = temp
+        enddo
+
+        dtmp = wnrm2
+
+        call rotmat_gmres(hmat(it,it),dtmp,cs(it),sn(it))
+          
+        hmat(it,it) = cs(it)*hmat(it,it)+sn(it)*wnrm2
+        svec(it1) = -sn(it)*svec(it)
+        svec(it) = cs(it)*svec(it)
+        rmyerr = abs(svec(it1))/rb
+        errs(it) = rmyerr
+        print *, "iter=",it,errs(it)
+
+        if(rmyerr.le.eps_gmres.or.it.eq.numit) then
+
+c
+c            solve the linear system corresponding to
+c            upper triangular part of hmat to obtain yvec
+c
+c            y = triu(H(1:it,1:it))\s(1:it);
+c
+          do j=1,it
+            iind = it-j+1
+            yvec(iind) = svec(iind)
+            do l=iind+1,it
+              yvec(iind) = yvec(iind) - hmat(iind,l)*yvec(l)
+            enddo
+            yvec(iind) = yvec(iind)/hmat(iind,iind)
+          enddo
+
+
+
+c
+c          estimate x
+c
+          do j=1,npts
+            soln(j) = 0
+            do i=1,it
+              soln(j) = soln(j) + yvec(i)*vmat(j,i)
+            enddo
+          enddo
+
+
+          rres = 0
+          do i=1,npts
+            wtmp(i) = 0
+          enddo
+c
+c        NOTE:
+c        replace this routine by appropriate layer potential
+c        evaluation routine  
+c
+          if(irep.eq.1) then
+            call lpcomp_lap_bel_s_lap_s_addsub(npatches,norders,ixyzs,
+     1       iptype,npts,srccoefs,srcvals,eps,nnz,row_ptr,col_ind,iquad,
+     2       nquad,wnear,soln,novers,npts_over,ixyzso,
+     3       srcover,wover,wtmp,u)
+          endif
+          if(irep.eq.2) then
+            call lpcomp_lap_bel_s_lap_s_noc_addsub(npatches,norders,
+     1       ixyzs,iptype,npts,srccoefs,srcvals,eps,nnz,row_ptr,col_ind,
+     2       iquad,nquad,wnear,soln,novers,npts_over,ixyzso,
+     3       srcover,wover,s_one,wtmp,u)
+          endif
+
+          if(irep.eq.3) then
+            call lpcomp_lap_bel_lap_s2_addsub(npatches,norders,ixyzs,
+     1       iptype,npts,srccoefs,srcvals,eps,nnz,row_ptr,col_ind,iquad,
+     2       nquad,wnear,soln,novers,npts_over,ixyzso,
+     3       srcover,wover,wtmp,u)
+          endif
+
+          do i=1,npts
+            rres = rres + abs(did*soln(i) + wtmp(i)-rhs(i))**2*wts(i)
+          enddo
+          rres = sqrt(rres)/rb
+          niter = it
+          return
+        endif
+      enddo
+c
+      return
+      end
+c
+c
+c
+c
+c
+c
+
+      subroutine get_hodge_decomposition(npatches,norders,ixyzs,
+     1    iptype,npts,srccoefs,srcvals,eps,numit,rhs,irep,
+     2    eps_gmres,niter,errs,rres,cfree,dfree,vharm)
+c
+c  This subroutine computes the hodge decomposition of a given
+c  vector field v = rhs.
+c 
+c  First, we compute its tangential projection given by
+c      v -> v - (v.n)n 
+c  
+c  Then the hodge decomposition of the tangential vector field
+c  is given by
+c      v = \nabla_{\Gamma} \alpha + n\times \nabla_{\Gamma} \beta +
+c             h
+c  where \nabla_{\Gamma} \alpha is the curl free component (cfree)
+c  n \times \nabla_{\Gamma} \beta is the divergence free component (dfree)
+c  and h is the harmonic component (vharm)
+c
+c  The components are computed by solving two Laplace beltrami problems
+c  \Delta_{\Gamma} \alpha = \nabla_{\Gamma} \cdot v, and 
+c  \Delta_{\Gamma} \beta = -\nabla_{\Gamma} \cdot n \times v.
+c
+c  Finally h is given by
+c   h = v - \nabla_{\Gamma} \alpha - n \times \nabla_{\Gamma} \beta
+c  
+c  The Laplace Beltrami problems are solved
+c  using one of the following three integral representations:
+c
+c  irep=1, s_lap_s: S (\Delta_{\Gamma} + W)S[\sigma] = S[f], where
+c                      S \Delta_{\Gamma}S [\sigma] is expanded out using 
+c                      Calderon identities
+c  irep=2, s_lap_s_noc: Same as above but no Calderon identities
+c            used
+c  irep=3, lap_s2: \Delta_{\Gamma} + W S^2 [\sigma], where
+c                    \Delta_{\Gamma}S^2 is expanded out
+c                    using Calderon identities
+c
+c  The linear system is solved iteratively using GMRES.
+c
+c  Input arguments:
+c 
+c    - npatches: integer
+c        number of patches
+c    - norders: integer(npatches)
+c        order of discretization on each patch 
+c    - ixyzs: integer(npatches+1)
+c        ixyzs(i) denotes the starting location in srccoefs,
+c        and srcvals array corresponding to patch i
+c    - iptype: integer(npatches)
+c        type of patch
+c        iptype = 1, triangular patch discretized using RV nodes
+c    - npts: integer
+c        total number of discretization points on the boundary
+c    - srccoefs: real *8 (9,npts)
+c        koornwinder expansion coefficients of xyz, dxyz/du,
+c        and dxyz/dv on each patch. 
+c        For each point 
+c          * srccoefs(1:3,i) is xyz info
+c          * srccoefs(4:6,i) is dxyz/du info
+c          * srccoefs(7:9,i) is dxyz/dv info
+c    - srcvals: real *8 (12,npts)
+c        xyz(u,v) and derivative info sampled at the 
+c        discretization nodes on the surface
+c          * srcvals(1:3,i) - xyz info
+c          * srcvals(4:6,i) - dxyz/du info
+c          * srcvals(7:9,i) - dxyz/dv info
+c          * srcvals(10:12,i) - normals info
+c    - eps: real *8
+c        precision requested
+c    - numit: integer
+c        maximum number of GMRES iterations
+c    - rhs: real *8 (3,npts)
+c        the input vector field
+c    - irep: integer
+c        representation for solving the Laplace Beltrami problem
+c        * irep = 1, s_lap_s
+c        * irep = 2, s_lap_s_noc
+c        * irep = 3, lap_s2
+c    - eps_gmres: real *8
+c        relative residual tolerance for GMRES
+c
+c  Output arguments:
+c    - niter: integer(2)
+c        number of GMRES iterations used for the two solves
+c    - errs: real *8 (niterj+1,2)
+c        On input must be of size (numit+1,2), gmres residual
+c        as a function of iteration number
+c    - rres: real *8 (2)
+c        relative residual to which the linear system is solved
+c    - cfree: real *8 (3,npts)
+c        the curl free component (\nabla_{\Gamma} \alpha)
+c    - dfree: real *8 (3,npts)
+c        the divergence free component (n \times \nabla_{\Gamma} \beta)
+c    - vharm: real *8 (3,npts)
+c        the harmonic component
+c
+      implicit none
+
+      integer, intent(in) :: npatches,npts
+      integer, intent(in) :: norders(npatches),ixyzs(npatches+1)
+      integer, intent(in) :: iptype(npatches)
+      integer, intent(in) :: numit,irep
+      real *8, intent(in) :: srccoefs(9,npts),srcvals(12,npts),eps
+      real *8, intent(in) :: eps_gmres
+      real *8, intent(in) :: rhs(3,npts)
+      real *8, intent(out) :: cfree(3,npts),dfree(3,npts),vharm(3,npts)
+      real *8, intent(out) :: errs(numit+1,2)
+      real *8, intent(out) :: rres(2)
+      integer, intent(out) ::  niter(2)
+      
+
+      real *8, allocatable :: rhs_use(:),rhs_tan(:,:),rhs_tan2(:,:)
+      real *8, allocatable :: targs(:,:)
+      integer, allocatable :: ipatch_id(:)
+      real *8, allocatable :: uvs_targ(:,:)
+      integer ndtarg,ntarg
+
+
+
+      integer norder,npols
+      integer nover,npolso,nptso
+      integer nnz,nquad
+      integer, allocatable :: row_ptr(:),col_ind(:),iquad(:)
+      real *8, allocatable :: wnear(:,:)
+      real *8, allocatable :: s_one(:),dens_one(:)
+
+      real *8, allocatable :: srcover(:,:),wover(:)
+      integer, allocatable :: ixyzso(:),novers(:)
+
+      real *8, allocatable :: cms(:,:),rads(:),rad_near(:)
+
+      real *8, allocatable :: alpha(:),beta(:),sgbeta(:,:)
+      real *8, allocatable :: alpha_sig(:),beta_sig(:)
+
+      integer i,j,jpatch,jquadstart,jstart
+
+      integer ipars
+      complex *16 zpars
+      real *8 timeinfo(10),t1,t2,omp_get_wtime
+
+
+      real *8 ttot,done,pi
+      real *8 rfac,rfac0,rn
+      real *8 dpars(2),erra,ra
+      integer iptype_avg,norder_avg
+      integer ikerorder, iquadtype,npts_over
+
+c
+c
+c       gmres variables
+c
+      real *8 did,dtmp
+      real *8 rb,wnrm2
+      integer it,iind,it1,k,l,ndquad
+      real *8 rmyerr
+      real *8 temp
+      real *8, allocatable :: wts(:)
+
+      complex *16 ztmp
+
+
+      done = 1
+      pi = atan(done)*4
+
+      if(irep.lt.1.or.irep.gt.3) then
+        print *, "invalid argument for irep, returning"
+        return
+      endif
+
+
+c
+c
+c        setup targets as on surface discretization points
+c 
+      ndtarg = 3
+      ntarg = npts
+      allocate(targs(ndtarg,npts),uvs_targ(2,ntarg),ipatch_id(ntarg))
+
+      allocate(rhs_tan(3,npts),rhs_use(npts),rhs_tan2(3,npts))
+
+C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(rn)
+      do i=1,ntarg
+        targs(1,i) = srcvals(1,i)
+        targs(2,i) = srcvals(2,i)
+        targs(3,i) = srcvals(3,i)
+        ipatch_id(i) = -1
+        uvs_targ(1,i) = 0
+        uvs_targ(2,i) = 0
+        rn = rhs(1,i)*srcvals(10,i) + rhs(2,i)*srcvals(11,i) + 
+     1     rhs(3,i)*srcvals(12,i)
+        rhs_tan(1,i) = rhs(1,i) - rn*srcvals(10,i)
+        rhs_tan(2,i) = rhs(2,i) - rn*srcvals(11,i)
+        rhs_tan(3,i) = rhs(3,i) - rn*srcvals(12,i)
+        call cross_prod3d(srcvals(10,i),rhs_tan(1,i),rhs_tan2(1,i))
+      enddo
+C$OMP END PARALLEL DO   
+
+
+c
+c    initialize patch_id and uv_targ for on surface targets
+c
+      call get_patch_id_uvs(npatches,norders,ixyzs,iptype,npts,
+     1  ipatch_id,uvs_targ)
+
+c
+c
+c
+      iptype_avg = floor(sum(iptype)/(npatches+0.0d0))
+      norder_avg = floor(sum(norders)/(npatches+0.0d0))
+
+      call get_rfacs(norder_avg,iptype_avg,rfac,rfac0)
+
+
+      allocate(cms(3,npatches),rads(npatches),rad_near(npatches))
+
+      call get_centroid_rads(npatches,norders,ixyzs,iptype,npts, 
+     1     srccoefs,cms,rads)
+
+C$OMP PARALLEL DO DEFAULT(SHARED) 
+      do i=1,npatches
+        rad_near(i) = rads(i)*rfac
+      enddo
+C$OMP END PARALLEL DO      
+
+c
+c    find near quadrature correction interactions
+c
+      print *, "entering find near mem"
+      call findnearmem(cms,npatches,rad_near,3,targs,npts,nnz)
+      print *, "nnz=",nnz
+
+      allocate(row_ptr(npts+1),col_ind(nnz))
+      
+      call findnear(cms,npatches,rad_near,3,targs,npts,row_ptr, 
+     1        col_ind)
+
+      allocate(iquad(nnz+1)) 
+      call get_iquad_rsc(npatches,ixyzs,npts,nnz,row_ptr,col_ind,
+     1         iquad)
+
+
+      allocate(wts(npts))
+      call get_qwts(npatches,norders,ixyzs,iptype,npts,
+     1        srcvals,wts)
+
+c
+c   compute near quadrature correction
+c
+      nquad = iquad(nnz+1)-1
+      print *, "nquad=",nquad
+      if(irep.eq.1.or.irep.eq.2) then
+        allocate(wnear(nquad,4))
+        ndquad = 4
+      else
+        allocate(wnear(nquad,3))
+        ndquad = 3
+      endif
+      
+      do j=1,ndquad
+C$OMP PARALLEL DO DEFAULT(SHARED)      
+        do i=1,nquad
+          wnear(i,j) = 0
+        enddo
+C$OMP END PARALLEL DO    
+      enddo
+
+
+      iquadtype = 1
+
+      print *, "starting to generate near quadrature"
+      call cpu_time(t1)
+C$      t1 = omp_get_wtime()      
+      if(irep.eq.1) then
+        call getnearquad_lap_bel_s_lap_s(npatches,norders,
+     1   ixyzs,iptype,npts,srccoefs,srcvals,eps,
+     2   iquadtype,nnz,row_ptr,col_ind,iquad,rfac0,nquad,wnear)
+      else if(irep.eq.2) then
+        call getnearquad_lap_bel_s_lap_s_noc(npatches,norders,
+     1   ixyzs,iptype,npts,srccoefs,srcvals,eps,
+     2   iquadtype,nnz,row_ptr,col_ind,iquad,rfac0,nquad,wnear)
+      else
+        call getnearquad_lap_bel_lap_s2(npatches,norders,
+     1   ixyzs,iptype,npts,srccoefs,srcvals,eps,
+     2   iquadtype,nnz,row_ptr,col_ind,iquad,rfac0,nquad,wnear)
+      endif
+      call cpu_time(t2)
+C$      t2 = omp_get_wtime()     
+
+      call prin2('quadrature generation time=*',t2-t1,1)
+      print *, "done generating near quadrature"
+      
+
+      allocate(alpha(npts),alpha_sig(npts))
+      allocate(beta(npts),beta_sig(npts))
+
+      call surf_div(npatches,norders,ixyzs,iptype,npts,srccoefs,
+     1  srcvals,rhs_tan,rhs_use)
+      
+
+      call lap_bel_solver_wquad(npatches,norders,ixyzs,
+     1    iptype,npts,srccoefs,srcvals,eps,numit,rhs_use,irep,
+     2    nnz,row_ptr,col_ind,iquad,ndquad,nquad,wnear,
+     3    eps_gmres,niter(1),errs(1,1),rres(1),alpha_sig,alpha)
+      
+      call surf_grad(npatches,norders,ixyzs,iptype,npts,
+     1  srccoefs,srcvals,alpha,cfree)
+
+
+      call surf_div(npatches,norders,ixyzs,iptype,npts,srccoefs,
+     1  srcvals,rhs_tan2,rhs_use)
+      
+c
+c
+c
+C$OMP PARALLEL DO DEFAULT(SHARED)
+      do i=1,npts
+         rhs_use(i) = -rhs_use(i)
+      enddo
+C$OMP END PARALLEL DO      
+      
+
+      call lap_bel_solver_wquad(npatches,norders,ixyzs,
+     1    iptype,npts,srccoefs,srcvals,eps,numit,rhs_use,irep,
+     2    nnz,row_ptr,col_ind,iquad,ndquad,nquad,wnear,
+     3    eps_gmres,niter(2),errs(1,2),rres(2),beta_sig,beta)
+      allocate(sgbeta(3,npts))
+      
+      call surf_grad(npatches,norders,ixyzs,iptype,npts,
+     1  srccoefs,srcvals,beta,sgbeta)
+      
+C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i)      
+      do i=1,npts
+        call cross_prod3d(srcvals(10,i),sgbeta(1,i),dfree(1,i))
+        vharm(1,i) = rhs_tan(1,i) - cfree(1,i) - dfree(1,i)
+        vharm(2,i) = rhs_tan(2,i) - cfree(2,i) - dfree(2,i)
+        vharm(3,i) = rhs_tan(3,i) - cfree(3,i) - dfree(3,i)
+      enddo
+C$OMP END PARALLEL DO      
+c
+
+
+c
+c
+c
+c
+      return
+      end
+c
+c
+c
+c
 c
