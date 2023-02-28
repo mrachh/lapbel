@@ -2554,7 +2554,7 @@ C$OMP END PARALLEL DO
       if(irep.eq.1.or.irep.eq.3) then
         did = -0.25d0
       else
-        did = 0
+        did = 0.0d0
       endif
 
       call cpu_time(t1)
@@ -2957,7 +2957,7 @@ C$OMP END PARALLEL DO
       if(irep.eq.1.or.irep.eq.3) then
         did = -0.25d0
       else
-        did = 0
+        did = 0.0d0
       endif
 
 

@@ -70,7 +70,7 @@
      1     col_ind,iquad,rfac0,nquad,xmattmp)
       do i=1,npts
         do j=1,npts
-          smat(j,i) = xmattmp(i,j)/4/pi
+          smat(j,i) = xmattmp(i,j)
         enddo
       enddo
 
@@ -84,7 +84,7 @@
      1     col_ind,iquad,rfac0,nquad,xmattmp)
       do i=1,npts
         do j=1,npts
-          sgradumat(j,i) = xmattmp(i,j)/4/pi
+          sgradumat(j,i) = xmattmp(i,j)
         enddo
       enddo
 
@@ -98,7 +98,7 @@
      1     col_ind,iquad,rfac0,nquad,xmattmp)
       do i=1,npts
         do j=1,npts
-          sgradvmat(j,i) = xmattmp(i,j)/4/pi
+          sgradvmat(j,i) = xmattmp(i,j)
         enddo
       enddo
 
@@ -112,7 +112,7 @@
      1     col_ind,iquad,rfac0,nquad,xmattmp)
       do i=1,npts
         do j=1,npts
-          dgradumat(j,i) = xmattmp(i,j)/4/pi
+          dgradumat(j,i) = xmattmp(i,j)
         enddo
       enddo
       print *, "done with fourth matrix"
@@ -126,7 +126,7 @@
      1     col_ind,iquad,rfac0,nquad,xmattmp)
       do i=1,npts
         do j=1,npts
-          dgradvmat(j,i) = xmattmp(i,j)/4/pi
+          dgradvmat(j,i) = xmattmp(i,j)
         enddo
       enddo
 
@@ -141,7 +141,7 @@
      1     col_ind,iquad,rfac0,nquad,xmattmp)
       do i=1,npts
         do j=1,npts
-          dmat(j,i) = xmattmp(i,j)/4/pi
+          dmat(j,i) = xmattmp(i,j)
         enddo
       enddo
 
@@ -156,7 +156,7 @@
      1     col_ind,iquad,rfac0,nquad,xmattmp)
       do i=1,npts
         do j=1,npts
-          spmat(j,i) = xmattmp(i,j)/4/pi
+          spmat(j,i) = xmattmp(i,j)
         enddo
       enddo
 
@@ -171,7 +171,7 @@
      1     col_ind,iquad,rfac0,nquad,xmattmp)
       do i=1,npts
         do j=1,npts
-          diffmat(j,i) = xmattmp(i,j)/4/pi
+          diffmat(j,i) = xmattmp(i,j)
         enddo
       enddo
 
