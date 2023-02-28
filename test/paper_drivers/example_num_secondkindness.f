@@ -8,6 +8,11 @@
       integer, allocatable :: norders(:),ixyzs(:),iptype(:)
       complex *16, allocatable :: rhs(:)
       real *8, allocatable :: rrhs(:),pot(:),potex(:)
+      real *8, allocatable :: pot_s(:),potex_s(:),pot_s2(:)
+      real *8, allocatable :: pot_sp(:),potex_sp(:)
+      real *8, allocatable :: pot_d(:),potex_d(:)
+      real *8, allocatable :: pot_diff(:),potex_diff(:)
+
       real *8, allocatable :: sigma1(:),sigma2(:),sigma3(:)
       real *8, allocatable :: errs1(:),errs2(:),errs3(:)
       
@@ -24,6 +29,9 @@
       real *8, allocatable :: dumat(:,:),dvmat(:,:),xutmp(:,:),
      1   xvtmp(:,:),umat(:,:),uvs(:,:),meancrvs(:)
       real *8, allocatable :: pols(:),ders(:,:)
+
+      complex *16, allocatable :: coefs_s(:,:),coefs_sp(:,:)
+      complex *16, allocatable :: coefs_d(:,:),coefs_diff(:,:)
       
       real *8, allocatable :: w(:,:),work(:)
 
@@ -55,7 +63,7 @@
       ipars(1) = 2
       npatches=12*(4**ipars(1))
 
-      norder = 3 
+      norder = 3
       npols = (norder+1)*(norder+2)/2
 
       npts = npatches*npols
@@ -81,32 +89,47 @@
 
 
       allocate(rhs(npts),rrhs(npts),pot(npts),potex(npts))
+      allocate(potex_s(npts),pot_s(npts),pot_s2(npts))
+
+
 
 c
 c       define rhs to be one of the ynm's
 c
       nmax = 2
       allocate(coefs(0:nmax,0:nmax),coefs_pot(0:nmax,0:nmax))
+      allocate(coefs_s(0:nmax,0:nmax))
       coefs = 0
       coefs_pot = 0
+      coefs_s = 0
 
       fname='rep-comp-res/boundary-data.dat'
       open(unit=33,file=trim(fname))
 
- 1121 format(2(2x,i3),2(2x,e22.16))
+ 1121 format(2(2x,i3),4(2x,e22.16))
       do i=0,nmax
         do j=0,i
           coefs(i,j) = (hkrand(0)-0.5d0) + ima*(hkrand(0)-0.5d0)
           if(i.eq.0.and.j.eq.0) coefs(i,j) = 0
           coefs_pot(i,j) = -coefs(i,j)*i*(i+1.0d0)/(2*i+1.0d0)**2
-          write(33,1121) i,j,coefs(i,j),coefs_pot(i,j)
+          write(33,1121) i,j,real(coefs(i,j)),imag(coefs(i,j)),
+     1       real(coefs_pot(i,j)),imag(coefs_pot(i,j))
         enddo
       enddo
 
+c      coefs = 0
+c      coefs_s = 0
+c      coefs(1,0) = 1
+c      coefs_s(1,0) = 1.0d0/3.0d0
+
       close(33)
 
-      call prin2('coefs=*',coefs,(nmax+1)**2)
-      call prin2('coefs_pot=*',coefs_pot,(nmax+1)**2)
+      call prin2('coefs=*',coefs,2*(nmax+1)**2)
+      call prin2('coefs_pot=*',coefs_pot,2*(nmax+1)**2)
+
+      rrhs = 0
+      potex_s = 0
+      potex = 0
 
       allocate(w(0:nmax,0:nmax))
       call l3dget_multynm_rhs(nmax,coefs,12,srcvals,rrhs,npts,w)
@@ -142,6 +165,32 @@ c
       call get_lapbel_matrices(npatches,norders,ixyzs,iptype,npts,
      1  srccoefs,srcvals,ipatch_id,uvs_targ,eps,smat,sgradumat,
      2  sgradvmat,dgradumat,dgradvmat,spmat,dmat,diffmat)
+      pot_s = 0      
+      alpha = 1.0d0
+      beta = 0.0d0
+
+      dpars(1) = 1.0d0
+      dpars(2) = 0.0d0
+
+
+c      call dgemv('n',npts,npts,alpha,smat,npts,rrhs,1,beta,pot_s,1)
+c      call lpcomp_lap_comb_dir(npatches,norders,ixyzs,iptype,npts,
+c     1  srccoefs,srcvals,12,npts,srcvals,ipatch_id,uvs_targ,eps,
+c     2  dpars,rrhs,pot_s2)
+c
+c      erra = 0
+c      ra = 0
+c      do i=1,npts
+c        erra = erra + (pot_s(i)-potex_s(i))**2*wts(i)
+c        if(i.le.5) print *, pot_s(i),potex_s(i),pot_s2(i)
+c        ra = ra + rrhs(i)**2*wts(i)
+c      enddo
+c      erra = sqrt(erra/ra)
+c      call prin2('error in smat =*',erra,1)
+c      stop
+c
+c  test individual matrices, s,d,sp,diff
+c
 
       alpha = 1.0d0
       beta = 0.0d0
@@ -182,7 +231,9 @@ c    add in contribution of smat*w*smat
 c 
       do j=1,npts
         do i=1,npts
-           xmat1(i,j) = wts(j)/4/pi
+           xmat1(i,j) = wts(j)
+           xmat2(i,j) = 0 
+           xmat5(i,j) = 0
         enddo
       enddo
 
@@ -219,6 +270,7 @@ c
       ra = 0
       do i=1,npts
         erra = erra + abs(potex(i)-pot(i))**2*wts(i)
+        if(i.le.5) print *, pot(i),potex(i),potex(i)/pot(i)
         ra = ra + abs(potex(i))**2*wts(i)
       enddo
       erra = sqrt(erra/ra)
@@ -270,6 +322,7 @@ c
       ra = 0
       do i=1,npts
         erra = erra + abs(potex(i)-pot(i))**2*wts(i)
+        if(i.le.5) print *, pot(i),potex(i),potex(i)/pot(i)
         ra = ra + abs(potex(i))**2*wts(i)
       enddo
       erra = sqrt(erra/ra)
@@ -322,7 +375,7 @@ c
       write(34,1131) erra1,erra2
       write(34,*) "===="
       write(34,*) "niter"
-      write(34,1141) niter1,niter2,niter3
+      write(34,1141) niter1,niter2
       write(34,*) "===="
       write(34,*) "errors as a function of iteration number"
       do i=1,niter1
@@ -346,8 +399,11 @@ c
       allocate(work(lw))
       call dgesvd('n','n',npts,npts,xmat_rep1,npts,s1,xmat1,npts,
      1   xmat2,npts,work,lw,info)
+      print *, "done with svd1"
+
       call dgesvd('n','n',npts,npts,xmat_rep2,npts,s2,xmat1,npts,
      1   xmat2,npts,work,lw,info)
+      print *, "done with svd2"
 
       do i=1,npts
         write(34,1131) s1(i),s2(i)
@@ -570,16 +626,18 @@ c
 
 
 
-      subroutine l3dget_multynm_rhs(nmax,coefs,ndx,xyzs,ynms,npts,w)
+      subroutine l3dget_multynm_rhs(nmax,coefs,ndx,xyzs,ynms,npts,ynm)
       implicit real *8 (a-h,o-z)
       real *8 :: xyzs(ndx,npts)
       real *8 ynms(npts)
-      complex *16 coefs(0:nmax,0:nmax),ztmp
+      complex *16 coefs(0:nmax,0:nmax),ztmp,ima
       real *8 rat1(10000),rat2(10000)
       real *8 ynm(0:nmax,0:nmax)
       data ima/(0.0d0,1.0d0)/
   
       call ylgndrini(nmax, rat1, rat2)
+      call prin2('coefs=*',coefs,2*(nmax+1)**2)
+
 
   
       do i=1,npts
@@ -593,7 +651,7 @@ c
         ynms(i) = 0
         do j=0,nmax
           do l=0,j
-            ztmp = coefs(j,l)*ynm(j,l)*exp(ima*l*phi) 
+            ztmp = coefs(j,l)*ynm(j,l)*exp(ima*l*phi)
             ynms(i) = ynms(i) + real(ztmp) 
           enddo
         enddo
